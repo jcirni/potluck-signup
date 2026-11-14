@@ -1,0 +1,214 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Signup } from './types.ts'
+
+/**
+ * Regression tests for the guest edit-token flow against a mocked
+ * Supabase client. The fake mirrors backend/supabase.sql: inserts
+ * store edit_token_hash, and the update_signup / delete_signup
+ * functions reject any call whose token hash does not match.
+ *
+ * The live bug these guard against: App minted a second edit token
+ * right after store.add() and overwrote the token whose hash had
+ * just been stored, so edit/remove failed the token check with
+ * "Not authorized to edit this signup." after a reload.
+ */
+
+const db = vi.hoisted(() => ({
+  events: new Map<string, Record<string, unknown>>(),
+  signups: new Map<string, Record<string, unknown>>(),
+}))
+
+vi.mock('@supabase/supabase-js', () => {
+  function selectBuilder(table: Map<string, Record<string, unknown>>) {
+    const filters: [string, unknown][] = []
+    const builder = {
+      eq(col: string, val: unknown) {
+        filters.push([col, val])
+        return builder
+      },
+      order() {
+        return builder
+      },
+      then(resolve: (v: unknown) => void, reject: (e: unknown) => void) {
+        const rows = [...table.values()]
+          .filter((r) => filters.every(([c, v]) => r[c] === v))
+          .map((r) => ({ ...r }))
+        return Promise.resolve({ data: rows, error: null }).then(resolve, reject)
+      },
+    }
+    return builder
+  }
+
+  const client = {
+    from(name: string) {
+      const table = name === 'signups' ? db.signups : db.events
+      return {
+        insert: async (row: Record<string, unknown>) => {
+          table.set(row.id as string, { ...row })
+          return { error: null }
+        },
+        upsert: async (row: Record<string, unknown>, opts?: { ignoreDuplicates?: boolean }) => {
+          if (opts?.ignoreDuplicates && table.has(row.id as string)) return { error: null }
+          table.set(row.id as string, { ...row })
+          return { error: null }
+        },
+        select: () => selectBuilder(table),
+      }
+    },
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'update_signup') {
+        const row = db.signups.get(args.p_signup_id as string)
+        if (!row || row.edit_token_hash !== args.p_token_hash) {
+          return { error: { message: 'Not authorized to edit this signup.' } }
+        }
+        const p = args.p_patch as Record<string, unknown>
+        // Same whitelist + coalesce semantics as the SQL function.
+        if (p.dishId != null) row.dish_id = p.dishId
+        if (p.scale != null) row.scale = p.scale
+        if (p.name != null) row.name = p.name
+        if (p.dish != null) row.dish = p.dish
+        if (p.course != null) row.course = p.course
+        if (p.needOven != null) row.need_oven = p.needOven
+        if (p.allergies != null) row.allergies = p.allergies
+        if (p.servings != null) row.servings = p.servings
+        return { error: null }
+      }
+      if (fn === 'delete_signup') {
+        const row = db.signups.get(args.p_signup_id as string)
+        if (!row || row.edit_token_hash !== args.p_token_hash) {
+          return { error: { message: 'Not authorized to remove this signup.' } }
+        }
+        db.signups.delete(args.p_signup_id as string)
+        return { error: null }
+      }
+      return { error: { message: `unknown rpc ${fn}` } }
+    },
+  }
+  return { createClient: () => client }
+})
+
+import { SupabaseStore, mintToken, ownsSignup, sha256Hex } from './storage.ts'
+
+class LocalStorageStub {
+  private map = new Map<string, string>()
+  getItem(k: string): string | null {
+    return this.map.get(k) ?? null
+  }
+  setItem(k: string, v: string): void {
+    this.map.set(k, String(v))
+  }
+  removeItem(k: string): void {
+    this.map.delete(k)
+  }
+  clear(): void {
+    this.map.clear()
+  }
+}
+
+function makeSignup(partial: Partial<Signup> = {}): Signup {
+  return {
+    id: 'signup-1',
+    eventId: 'friendsgiving',
+    name: 'E2E Tester',
+    dish: 'Test Pie',
+    course: 'Desserts',
+    needOven: false,
+    allergies: '',
+    servings: 8,
+    createdAt: '2026-11-14T00:00:00.000Z',
+    ...partial,
+  }
+}
+
+beforeEach(() => {
+  db.events.clear()
+  db.signups.clear()
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: new LocalStorageStub(),
+    configurable: true,
+    writable: true,
+  })
+})
+
+describe('SupabaseStore guest edit token across reloads', () => {
+  it('stores the hash of the token this browser holds at insert time', async () => {
+    const store = new SupabaseStore()
+    await store.add(makeSignup())
+    const tokens = JSON.parse(localStorage.getItem('potluck:tokens:v1') ?? '{}') as Record<string, string>
+    expect(tokens['signup-1']).toBeTruthy()
+    expect(db.signups.get('signup-1')?.edit_token_hash).toBe(await sha256Hex(tokens['signup-1']))
+    expect(ownsSignup('signup-1')).toBe(true)
+  })
+
+  it('edit and remove still work after a reload (new store, same browser storage)', async () => {
+    await new SupabaseStore().add(makeSignup())
+
+    const reloaded = new SupabaseStore()
+    await reloaded.update('signup-1', { dish: 'Updated Pie', servings: 12 })
+    expect(db.signups.get('signup-1')).toMatchObject({ dish: 'Updated Pie', servings: 12 })
+
+    await reloaded.remove('signup-1')
+    expect(db.signups.has('signup-1')).toBe(false)
+  })
+
+  it('minting again after add() returns the same token instead of overwriting it', async () => {
+    // This is the exact sequence the buggy App ran: add() mints and
+    // stores hash #1, then a second mint for the same id must not
+    // replace the token that hash #1 was derived from.
+    await new SupabaseStore().add(makeSignup())
+    const again = mintToken('signup-1')
+    const tokens = JSON.parse(localStorage.getItem('potluck:tokens:v1') ?? '{}') as Record<string, string>
+    expect(again).toBe(tokens['signup-1'])
+    expect(db.signups.get('signup-1')?.edit_token_hash).toBe(await sha256Hex(again))
+
+    await new SupabaseStore().update('signup-1', { dish: 'Still Editable Pie' })
+    expect(db.signups.get('signup-1')?.dish).toBe('Still Editable Pie')
+  })
+
+  it('mintToken is idempotent on its own', () => {
+    expect(mintToken('abc')).toBe(mintToken('abc'))
+    expect(mintToken('abc')).not.toBe(mintToken('xyz'))
+  })
+
+  it('a different browser (no token) cannot edit or remove the signup', async () => {
+    await new SupabaseStore().add(makeSignup())
+
+    // Fresh browser profile: same database, empty localStorage.
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new LocalStorageStub(),
+      configurable: true,
+      writable: true,
+    })
+    const stranger = new SupabaseStore()
+    await expect(stranger.update('signup-1', { dish: 'Hijacked Pie' })).rejects.toThrow(
+      'Only the browser that signed up can edit this dish.',
+    )
+    await expect(stranger.remove('signup-1')).rejects.toThrow(
+      'Only the browser that signed up can remove this dish.',
+    )
+    expect(db.signups.get('signup-1')?.dish).toBe('Test Pie')
+  })
+
+  it('a mismatched token is rejected the way the SQL function rejects it', async () => {
+    await new SupabaseStore().add(makeSignup())
+    localStorage.setItem('potluck:tokens:v1', JSON.stringify({ 'signup-1': crypto.randomUUID() }))
+    await expect(new SupabaseStore().update('signup-1', { dish: 'Nope' })).rejects.toThrow(
+      'Supabase request failed: Not authorized to edit this signup.',
+    )
+    await expect(new SupabaseStore().remove('signup-1')).rejects.toThrow(
+      'Supabase request failed: Not authorized to remove this signup.',
+    )
+  })
+
+  it('the auto-created event admin token is stable across reloads', async () => {
+    await new SupabaseStore().add(makeSignup())
+    const tokenBefore = localStorage.getItem('potluck:admin-token:friendsgiving')
+    const hashBefore = db.events.get('friendsgiving')?.admin_token_hash
+    expect(tokenBefore).toBeTruthy()
+    expect(hashBefore).toBe(await sha256Hex(tokenBefore as string))
+
+    await new SupabaseStore().add(makeSignup({ id: 'signup-2', dish: 'Second Pie' }))
+    expect(localStorage.getItem('potluck:admin-token:friendsgiving')).toBe(tokenBefore)
+    expect(db.events.get('friendsgiving')?.admin_token_hash).toBe(hashBefore)
+  })
+})

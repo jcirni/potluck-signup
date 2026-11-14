@@ -89,9 +89,20 @@ export async function sha256Hex(text: string): Promise<string> {
     .join('')
 }
 
-/** Edit tokens: one per signup id, kept only in this browser. */
+/**
+ * Edit tokens: one per signup id, kept only in this browser.
+ * Minting is idempotent: a token that already exists for the id is
+ * returned, never replaced. The backend stored the hash of the first
+ * token at insert time, so swapping in a fresh token afterwards
+ * would silently orphan the signup (its stored hash would no longer
+ * match anything this browser holds, and edit/remove would fail the
+ * token check). That exact overwrite once shipped as a bug: App
+ * minted a second token right after add() and clobbered the first.
+ */
 export function mintToken(id: string): string {
   const tokens = readTokens()
+  const existing = tokens[id]
+  if (existing) return existing
   const token = crypto.randomUUID()
   tokens[id] = token
   localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens))

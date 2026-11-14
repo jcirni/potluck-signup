@@ -10,7 +10,6 @@ import {
   createStore,
   forgetToken,
   getStoredSetting,
-  mintToken,
   ownsSignup,
   setStoredSetting,
   type SignupStore,
@@ -169,7 +168,6 @@ export default function App() {
           createdAt: new Date().toISOString(),
         }
         await store.add(signup)
-        mintToken(signup.id)
         setNotice('You are signed up. Your edit link is saved in this browser, so you can change or remove your dish later.')
       }
       setForm(emptyForm())
