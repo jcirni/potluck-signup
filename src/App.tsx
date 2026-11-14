@@ -53,6 +53,8 @@ export default function App() {
   const [eventName, setEventName] = useState(() => localStorage.getItem(EVENT_KEY) ?? 'Friendsgiving')
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
+  const [confirmClearSamples, setConfirmClearSamples] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
 
@@ -110,6 +112,8 @@ export default function App() {
   useEffect(() => {
     const s = createStore(mode)
     setStore(s)
+    setConfirmRemoveId(null)
+    setConfirmClearSamples(false)
     localStorage.setItem(MODE_KEY, mode)
     setLoaded(false)
     // Seed the sample rows only for the offline modes; a central
@@ -179,7 +183,7 @@ export default function App() {
   }
 
   async function removeSignup(s: Signup) {
-    if (!window.confirm(`Remove ${s.name} — ${s.dish}?`)) return
+    setConfirmRemoveId(null)
     try {
       await store.remove(s.id)
       forgetToken(s.id)
@@ -190,7 +194,7 @@ export default function App() {
   }
 
   async function clearSample() {
-    if (!window.confirm('Clear the four sample rows from the 2024 sheet and start fresh?')) return
+    setConfirmClearSamples(false)
     try {
       for (const s of signups.filter((x) => x.sample)) await store.remove(s.id)
       await refresh(store, false)
@@ -210,6 +214,7 @@ export default function App() {
   }
 
   function startEdit(s: Signup) {
+    setConfirmRemoveId(null)
     setForm({
       name: s.name,
       dish: s.dish,
@@ -363,11 +368,25 @@ export default function App() {
         )}
         {hasSample && (
           <p className="notice">
-            Showing four sample rows from the 2024 Friendsgiving sheet (Howard, Joe, Valerie, Gardner).{' '}
-            <button type="button" className="link" onClick={() => void clearSample()}>
-              Clear sample data
-            </button>{' '}
-            to start fresh.
+            {confirmClearSamples ? (
+              <>
+                Clear the four sample rows from the 2024 sheet and start fresh?{' '}
+                <button type="button" className="link danger" onClick={() => void clearSample()}>
+                  Confirm
+                </button>{' '}
+                <button type="button" className="link" onClick={() => setConfirmClearSamples(false)}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                Showing four sample rows from the 2024 Friendsgiving sheet (Howard, Joe, Valerie, Gardner).{' '}
+                <button type="button" className="link" onClick={() => setConfirmClearSamples(true)}>
+                  Clear sample data
+                </button>{' '}
+                to start fresh.
+              </>
+            )}
           </p>
         )}
         {duplicates.length > 0 && (
@@ -468,12 +487,30 @@ export default function App() {
                           {s.sample === true && <span className="tag sample">sample</span>}
                           {canEdit && (
                             <span className="actions">
-                              <button type="button" className="link" onClick={() => startEdit(s)}>
-                                Edit
-                              </button>
-                              <button type="button" className="link danger" onClick={() => void removeSignup(s)}>
-                                Remove
-                              </button>
+                              {confirmRemoveId === s.id ? (
+                                <>
+                                  <span>Remove this signup?</span>
+                                  <button type="button" className="link danger" onClick={() => void removeSignup(s)}>
+                                    Confirm
+                                  </button>
+                                  <button type="button" className="link" onClick={() => setConfirmRemoveId(null)}>
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button type="button" className="link" onClick={() => startEdit(s)}>
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="link danger"
+                                    onClick={() => setConfirmRemoveId(s.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </>
+                              )}
                             </span>
                           )}
                         </li>
