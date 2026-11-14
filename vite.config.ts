@@ -16,8 +16,7 @@ export default defineConfig({
         theme_color: '#b8860b',
         background_color: '#f7f5ef',
         display: 'standalone',
-        // Relative start_url/scope so the installed app works from any
-        // GitHub Pages subpath, matching base: './'.
+        // Relative start_url/scope: works from any GitHub Pages subpath, matching base: './'.
         start_url: '.',
         scope: '.',
         icons: [
@@ -27,13 +26,11 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Precache the app shell plus the static dish catalog
-        // (public/data/dishes.json) and icons copied into dist/.
+        // Precache the app shell, the dish catalog, and icons copied into dist/.
         globPatterns: ['**/*.{js,css,html,json,png,svg,ico}'],
         runtimeCaching: [
           {
-            // Signup data must always be live: never serve Supabase
-            // API responses from the service worker cache.
+            // Signup data must always be live: never cache Supabase API responses.
             urlPattern: /^https:\/\/[^/]+\.supabase\.co\/.*/i,
             handler: 'NetworkOnly',
           },

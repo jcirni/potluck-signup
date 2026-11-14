@@ -12,11 +12,7 @@ export interface ClaimedDish {
   scale: number
 }
 
-/**
- * Build a shopping list from the claimed catalog dishes: ingredient
- * quantities scaled by each cook's chosen scale, summed across
- * dishes that share an item and unit, sorted by item name.
- */
+/** Shopping list from claimed dishes: quantities scaled per cook, summed across dishes sharing item + unit, sorted by item. */
 export function buildShoppingList(claims: ClaimedDish[]): ShoppingLine[] {
   const byKey = new Map<string, ShoppingLine>()
   for (const { dish, scale } of claims) {

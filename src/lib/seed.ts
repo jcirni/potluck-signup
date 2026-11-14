@@ -13,12 +13,9 @@ export const SAMPLE_EVENT: PotluckEvent = {
 }
 
 /**
- * Sample data only: the four entries named in the 2024 Friendsgiving
- * sheet Joseph shared (Name | What are you bringing? | Course |
- * Need Oven? | Food Allergies?). No other 2024 rows are reproduced
- * here because they were not quoted in the chat, and oven need /
- * servings were not quoted for these four either, so they default
- * to false / 0 (not stated) rather than a guess.
+ * Sample data: the four entries quoted from the 2024 Friendsgiving sheet.
+ * Oven need / servings were not quoted for them, so they default to
+ * false / 0 (not stated) rather than a guess.
  */
 export const SAMPLE_SIGNUPS: Signup[] = [
   {

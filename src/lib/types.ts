@@ -62,11 +62,7 @@ export interface Signup {
   /** Servings the dish covers; 0 means not stated. */
   servings: number
   createdAt: string
-  /**
-   * SHA-256 hex of the guest's edit token. The token itself is never
-   * stored on the server; only its hash is, so the token can be
-   * checked without being recoverable from the database.
-   */
+  /** SHA-256 hex of the guest's edit token; the token itself is never stored server-side. */
   editTokenHash?: string
   /** True for the four entries copied from the 2024 Friendsgiving sheet. */
   sample?: boolean

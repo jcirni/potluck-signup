@@ -2,15 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Signup } from './types.ts'
 
 /**
- * Regression tests for the guest edit-token flow against a mocked
- * Supabase client. The fake mirrors backend/supabase.sql: inserts
- * store edit_token_hash, and the update_signup / delete_signup
- * functions reject any call whose token hash does not match.
- *
- * The live bug these guard against: App minted a second edit token
- * right after store.add() and overwrote the token whose hash had
- * just been stored, so edit/remove failed the token check with
- * "Not authorized to edit this signup." after a reload.
+ * Regression tests for the guest edit-token flow (mocked Supabase client
+ * mirroring supabase.sql's hash checks). Guards the shipped bug where App
+ * minted a second token after add() and clobbered the first.
  */
 
 const db = vi.hoisted(() => ({
@@ -152,9 +146,7 @@ describe('SupabaseStore guest edit token across reloads', () => {
   })
 
   it('minting again after add() returns the same token instead of overwriting it', async () => {
-    // This is the exact sequence the buggy App ran: add() mints and
-    // stores hash #1, then a second mint for the same id must not
-    // replace the token that hash #1 was derived from.
+    // The buggy App's exact sequence: a second mint must not replace the token behind the stored hash.
     await new SupabaseStore().add(makeSignup())
     const again = mintToken('signup-1')
     const tokens = JSON.parse(localStorage.getItem('potluck:tokens:v1') ?? '{}') as Record<string, string>

@@ -85,6 +85,17 @@ Not yet built, documented here so the gap is explicit: a Cloudflare
 Turnstile check on event creation, and automatic deletion of events
 about 30 days after their date.
 
+## Schema notes
+
+The schema mirrors `src/lib/types.ts`. Courses are Appetizers,
+Mains, Veggies, Sides, Desserts, Drinks, and Supplies. Events carry
+per-course `targets` plus `dietary_needs` (host-set guest counts for
+vegetarian, vegan, glutenFree, noPork). A signup may reference a
+catalog dish (`dish_id`) with a recipe `scale`. RSVPs track
+headcount separately from dishes: an event's `headcount` field is
+the host's estimate, and once RSVPs exist their adults + kids sums
+are the actual count.
+
 ## Schema changes later
 
 Edit `backend/supabase.sql` and run the changed file again in the

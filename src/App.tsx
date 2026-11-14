@@ -90,9 +90,7 @@ export default function App() {
     setError('')
     try {
       const list = await s.list()
-      // Seed the four 2024 sample rows once per offline mode, and
-      // persist them through the store so the first real signup does
-      // not wipe them. The flag means clearing the samples stays cleared.
+      // Seed the 2024 samples once per offline mode, through the store; the flag keeps a manual clear cleared.
       const seedKey = `potluck:seeded:${s.mode}`
       if (list.length === 0 && seedIfEmpty && !localStorage.getItem(seedKey)) {
         for (const sample of SAMPLE_SIGNUPS) await s.add(sample)
@@ -116,8 +114,7 @@ export default function App() {
     setConfirmClearSamples(false)
     localStorage.setItem(MODE_KEY, mode)
     setLoaded(false)
-    // Seed the sample rows only for the offline modes; a central
-    // backend starts empty so the Sheet / table is the source of truth.
+    // Seed samples only for offline modes; a central backend starts empty.
     void refresh(s, mode === 'local' || mode === 'url')
   }, [mode, refresh])
 

@@ -1,9 +1,7 @@
 name: Supabase keep-alive
 
-# Free Supabase projects pause after 1 week of inactivity across the
-# whole project. One tiny REST read every 3 days counts as activity.
-# The anon key is public by design (it ships in the client code) and
-# row-level security is what protects the data, so it is safe inline.
+# Free Supabase projects pause after 1 week of inactivity; one REST read every 3 days counts as activity.
+# The anon key is public by design (it ships in the client code), so it is safe inline.
 
 on:
   schedule:

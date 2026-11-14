@@ -1,38 +1,7 @@
--- Potluck signup backend: Supabase (free Postgres).
--- Run once in the Supabase SQL editor, then paste the project URL
--- and anon key into the app's Settings (the app also ships with the
--- potluck-signup project's URL and anon key as built-in defaults).
---
--- Design (userless, public): anyone can create an event, no accounts.
--- Each event has a public share link (?event=<id>) and a private admin
--- link (?event=<id>&admin=<token>). Only the SHA-256 hash of each
--- token is stored; the token itself never touches the database.
--- A guest's edit token is stored the same way on their signup / RSVP.
---
--- Row-level security: anonymous visitors can read events, signups,
--- and RSVPs and insert new ones. There are deliberately NO
--- update/delete policies, so nobody can edit or wipe rows through
--- the REST API with the public anon key. Edits and deletes go
--- through the SECURITY DEFINER functions below, which check the
--- token hash first.
---
--- This file mirrors src/lib/types.ts: courses are Appetizers, Mains,
--- Veggies, Sides, Desserts, Drinks, Supplies; events carry per-course
--- targets plus host-set dietary needs (guest counts for vegetarian,
--- vegan, glutenFree, noPork); signups may reference a catalog dish
--- (dish_id) with a recipe scale; RSVPs track headcount separately
--- from dishes (adults + kids per party).
---
--- Free tier, per Supabase's pricing page as checked 2026-11-14:
--- $0, unlimited API requests, 500 MB database, 5 GB egress,
--- 1 GB file storage, 2 projects. Free projects pause after 1 week
--- of no activity across the whole project; the keep-alive workflow
--- in .github/workflows/keep-alive.yml pings the database every
--- 3 days to prevent that. Pro ($25/mo) removes pausing.
---
--- Not yet built (see README): a Cloudflare Turnstile check on event
--- creation, and automatic deletion of events ~30 days after their
--- date. Both are documented there as the next hardening steps.
+-- Potluck signup backend: Supabase (free Postgres). Run once in the SQL Editor.
+-- Userless and public: identity is a token; only SHA-256 token hashes are stored.
+-- RLS allows anon read/insert only; edits go through the token-checked functions below.
+-- Design, free-tier limits, and setup: docs/BACKEND.md.
 
 create table if not exists public.events (
   id text primary key,
@@ -45,8 +14,7 @@ create table if not exists public.events (
   created_at timestamptz not null default now()
 );
 
--- Column guards so re-running this file on a project set up with an
--- earlier draft adds what is missing instead of failing.
+-- Column guards so re-running on an earlier draft adds missing columns instead of failing.
 alter table public.events add column if not exists dietary_needs jsonb not null default '{"vegetarian":0,"vegan":0,"glutenFree":0,"noPork":0}'::jsonb;
 
 create table if not exists public.signups (
@@ -70,8 +38,6 @@ alter table public.signups add column if not exists scale numeric check (scale i
 create index if not exists signups_event_id_idx on public.signups (event_id);
 
 -- RSVPs: who is coming, separate from what they are bringing.
--- Headcount for an event is its events.headcount estimate until
--- RSVPs exist; the RSVP sums (adults + kids) are the actual count.
 create table if not exists public.rsvps (
   id text primary key,
   event_id text not null references public.events (id) on delete cascade,
@@ -146,9 +112,7 @@ drop policy if exists "potluck add rsvps" on public.rsvps;
 create policy "potluck add rsvps" on public.rsvps
   for insert with check (true);
 
--- Edits and deletes only through these functions, which check a token hash.
--- p_patch keys use the frontend's camelCase names. Only whitelisted
--- keys are applied.
+-- Edits/deletes only via these token-checked functions; p_patch keys are camelCase and whitelisted.
 
 create or replace function public.update_signup(p_signup_id text, p_token_hash text, p_patch jsonb)
 returns void

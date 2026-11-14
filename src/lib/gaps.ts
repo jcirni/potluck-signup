@@ -37,13 +37,7 @@ export interface DuplicateWarning {
   exact: boolean
 }
 
-/**
- * Same dish signed up more than once, grouped by dish name
- * (case-insensitive, trimmed). A match is exact when at least two
- * signups in the group claimed the same catalog dish id, which is
- * the reliable signal; a name-only match is still reported so the
- * host can decide.
- */
+/** Same dish signed up more than once, grouped by name (case-insensitive); exact = two signups claimed the same catalog dish id. */
 export function findDuplicates(signups: Signup[]): DuplicateWarning[] {
   const byName = new Map<string, Signup[]>()
   for (const s of signups) {
@@ -78,10 +72,9 @@ export interface DietaryCoverage {
 }
 
 /**
- * Check the host's dietary needs against the menu. Only catalog
- * dishes carry diet tags, so free-text signups count as unknown
- * rather than as a miss. No-pork counts any catalog dish that is
- * vegetarian, vegan, or simply contains no meat.
+ * Check dietary needs against the menu. Only catalog dishes carry diet
+ * tags, so free-text signups count as unknown, not a miss. No-pork also
+ * counts any catalog dish containing no meat.
  */
 export function dietaryCoverage(
   signups: Signup[],
@@ -122,11 +115,7 @@ export interface OvenEntry {
   tempF: number | null
 }
 
-/**
- * Oven plan for the day: dishes that need the oven, highest
- * temperature first (bake those first), with unknown temperatures
- * last. Free-text oven dishes have no temperature.
- */
+/** Oven plan: dishes needing the oven, highest temperature first; unknown temps last. */
 export function ovenPlan(signups: Signup[], dishesById: Map<string, Dish>): OvenEntry[] {
   const entries: OvenEntry[] = []
   for (const s of signups) {

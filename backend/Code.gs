@@ -1,18 +1,12 @@
 /**
  * Potluck signup backend: Google Apps Script + Google Sheet.
- *
  * Setup (one time, ~5 minutes):
- * 1. Open the Friendsgiving Sheet (or a copy) and add a tab named
- *    "Signups" with this header row:
+ * 1. Add a "Signups" tab to the Sheet with header row:
  *    id | name | dish | course | needOven | allergies | servings | createdAt
  * 2. Extensions > Apps Script, paste this file, save.
- * 3. Deploy > New deployment > Web app. Execute as: Me.
- *    Who has access: Anyone (the link is shared with guests; there
- *    are no accounts, and the Sheet is the admin view).
+ * 3. Deploy > New deployment > Web app. Execute as: Me; access: Anyone.
  * 4. Paste the /exec URL into the app's Settings > Apps Script URL.
- *
- * The frontend sends JSON POSTs with an `action` field. GET
- * ?action=list returns the current signups as JSON.
+ * The frontend POSTs JSON with an `action` field; GET ?action=list returns signups.
  */
 
 const SHEET_NAME = 'Signups';

@@ -5,27 +5,16 @@ import { COURSES, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isCourse } from './types
 export type StoreMode = 'local' | 'url' | 'apps-script' | 'supabase'
 
 /**
- * One store interface for every backend. The frontend never talks to
- * a backend directly, so switching from the demo to Supabase is a
- * mode change in Settings, not a rebuild.
- *
- * Userless model: no accounts anywhere. Identity is possession of a
- * token. A guest's edit token lives only in their browser; only its
- * SHA-256 hash is stored with the signup. An event's admin token
- * lives only in the admin link; only its hash is stored with the
- * event. The central backends enforce those hashes (Supabase via
- * database functions, see backend/supabase.sql); the offline modes
- * trust the browser, which is fine for a demo.
+ * One store interface for every backend, so the frontend never talks to a
+ * backend directly. Userless: identity is a token; only SHA-256 token
+ * hashes are stored server-side (model: docs/BACKEND.md).
  */
 export interface SignupStore {
   mode: StoreMode
   label: string
   /** Short human-readable note about what this mode does and does not do. */
   note: string
-  /** The event this store instance is bound to. The single-event UI
-   * (App.tsx) works against this event through list/add/update/remove
-   * below; the *Event / *Signup methods take explicit ids for
-   * event-aware callers. */
+  /** Event this store is bound to; list/add/update/remove below target it. */
   readonly eventId: string
   createEvent(event: PotluckEvent, adminTokenHash: string): Promise<void>
   getEvent(id: string): Promise<PotluckEvent | null>
@@ -38,8 +27,7 @@ export interface SignupStore {
   removeSignup(id: string, opts?: { eventId: string; editTokenHash?: string; adminTokenHash?: string }): Promise<void>
   /** Signups for the bound event (eventId above). */
   list(): Promise<Signup[]>
-  /** Add a signup to the bound event. Mints this browser's edit token
-   * for the signup and stores only its hash, if the signup has none. */
+  /** Add a signup to the bound event; mints this browser's edit token if it has none. */
   add(signup: Signup): Promise<void>
   /** Edit a signup, using the edit token this browser holds for it. */
   update(id: string, patch: Partial<Signup>): Promise<void>
@@ -55,12 +43,7 @@ const APPS_SCRIPT_EVENT_KEY = 'potluck:apps-script-event'
 const SUPABASE_URL_KEY = 'potluck:supabase-url'
 const SUPABASE_KEY_KEY = 'potluck:supabase-anon-key'
 
-/**
- * The potluck-signup Supabase project, used when Settings has no
- * override. Both values are public by design: the anon key is safe
- * to ship in client code, and row-level security (plus the token
- * checking database functions) is what protects writes.
- */
+/** Built-in project, used when Settings has no override. Both values are public by design; RLS and token checks protect writes. */
 export const DEFAULT_SUPABASE_URL = 'https://qpzohrhtyhwcvukzjoep.supabase.co'
 export const DEFAULT_SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwem9ocmh0eWh3Y3Z1a3pqb2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2ODUxNDQsImV4cCI6MjExMDI2MTE0NH0.7XhSSNR-KoKrFLQDsZYSNQMOCndbqMkmiRUffau8BiU'
@@ -90,14 +73,9 @@ export async function sha256Hex(text: string): Promise<string> {
 }
 
 /**
- * Edit tokens: one per signup id, kept only in this browser.
- * Minting is idempotent: a token that already exists for the id is
- * returned, never replaced. The backend stored the hash of the first
- * token at insert time, so swapping in a fresh token afterwards
- * would silently orphan the signup (its stored hash would no longer
- * match anything this browser holds, and edit/remove would fail the
- * token check). That exact overwrite once shipped as a bug: App
- * minted a second token right after add() and clobbered the first.
+ * Edit tokens: one per signup id, kept only in this browser. Minting is
+ * idempotent: the backend stored the first token's hash, so replacing a
+ * token would orphan the signup (a bug that shipped once; see tests).
  */
 export function mintToken(id: string): string {
   const tokens = readTokens()
@@ -133,12 +111,7 @@ async function storedEditTokenHash(id: string): Promise<string | undefined> {
   return token ? sha256Hex(token) : undefined
 }
 
-/**
- * Prepare a signup for add(): make sure this browser holds an edit
- * token for it and the signup carries that token's hash, so the
- * signup stays editable (and removable) from this browser later.
- * Signups that already carry a hash are left as they are.
- */
+/** Ensure this browser holds an edit token for the signup and the signup carries its hash, so it stays editable here. */
 async function withEditToken(signup: Signup): Promise<Signup> {
   if (signup.editTokenHash) return signup
   const token = readTokens()[signup.id] ?? mintToken(signup.id)
@@ -156,8 +129,7 @@ function cleanTargets(raw: unknown): Targets | null {
   return out
 }
 
-/** Lenient on purpose: older stored events predate dietary needs, so
- * missing or partial values fall back to zero counts, not rejection. */
+/** Lenient: older stored events predate dietary needs, so gaps fall back to zero counts. */
 function cleanDietaryNeeds(raw: unknown): DietaryNeeds {
   const out: DietaryNeeds = { ...EMPTY_DIETARY_NEEDS }
   if (typeof raw !== 'object' || raw === null) return out
@@ -191,8 +163,7 @@ export function cleanSignup(raw: unknown): Signup | null {
   if (typeof r.id !== 'string' || typeof r.name !== 'string' || typeof r.dish !== 'string') return null
   if (typeof r.course !== 'string' || !isCourse(r.course)) return null
   if (typeof r.eventId !== 'string') return null
-  // Length and range limits mirror the signups table checks in
-  // backend/supabase.sql, so bad rows are rejected the same way here.
+  // Length/range limits mirror the signups checks in backend/supabase.sql.
   if (r.name.length < 1 || r.name.length > 80) return null
   if (r.dish.length < 1 || r.dish.length > 120) return null
   if (typeof r.allergies === 'string' && r.allergies.length > 200) return null
@@ -303,12 +274,9 @@ interface UrlSnapshot {
 }
 
 /**
- * Snapshot mode. The current event and its list are Base64URL-encoded
- * JSON in the URL hash (`#s=...`), so the link itself carries the
- * latest state. It never sees a server, which is exactly why it
- * forks: two people opening the same link at once each make a
- * different new link. Use it for sharing a snapshot / export, not as
- * the live signup system. Only the most recent event is in the link.
+ * Snapshot mode: event + list are Base64URL JSON in the URL hash (#s=...),
+ * so the link carries the state. It forks when two people sign up from the
+ * same link, so use it for snapshots/exports, not the live signup system.
  */
 export class UrlSnapshotStore implements SignupStore {
   mode: StoreMode = 'url'
@@ -403,13 +371,9 @@ interface AppsScriptResponse {
 }
 
 /**
- * Single-event fallback: a Google Apps Script web app backed by the
- * Sheet Joseph already uses. The Sheet stays the admin view / backup.
- * It holds exactly one event, so event details live in this browser
- * and the Sheet holds only the signups. Deploy backend/Code.gs as a
- * web app (Execute as: Me, access: Anyone) and paste its URL in
- * Settings. For the public, anyone-can-create-an-event version,
- * Supabase is the backend, not this one.
+ * Single-event fallback: an Apps Script web app backed by a Google Sheet
+ * (setup: backend/Code.gs). Event details live in this browser; the Sheet
+ * holds only signups and stays the admin view. Public events use Supabase.
  */
 export class AppsScriptStore implements SignupStore {
   mode: StoreMode = 'apps-script'
@@ -470,8 +434,7 @@ export class AppsScriptStore implements SignupStore {
     const res = await fetch(`${endpoint}?action=list`)
     if (!res.ok) throw new Error(`Apps Script request failed (${res.status}).`)
     const data = (await res.json()) as AppsScriptResponse
-    // The Sheet holds one event only and its rows carry no eventId;
-    // stamp the bound event on the raw rows so they pass validation.
+    // The Sheet's rows carry no eventId; stamp the bound event so they validate.
     const raw = Array.isArray(data.signups) ? data.signups : []
     return cleanSignupList(
       raw.map((row) =>
@@ -512,12 +475,9 @@ export class AppsScriptStore implements SignupStore {
 }
 
 /**
- * The public backend: Supabase (free Postgres). Anyone can create
- * their own event, no accounts. The anon key is publishable by
- * design; row-level security is what protects writes (see
- * backend/supabase.sql): anonymous visitors can read events and
- * signups and insert a signup, and edits/deletes go through
- * database functions that check the token hash.
+ * The public backend: Supabase (free Postgres), no accounts. The anon key
+ * is publishable by design; RLS plus token-checked functions protect
+ * writes (see backend/supabase.sql).
  */
 export class SupabaseStore implements SignupStore {
   mode: StoreMode = 'supabase'
@@ -529,8 +489,7 @@ export class SupabaseStore implements SignupStore {
   private cachedConfig = ''
 
   constructor() {
-    // The bound event comes from the share link (?event=<id>) when
-    // present, and falls back to the demo event.
+    // Bound event comes from the share link (?event=<id>), else the demo event.
     const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('event') : null
     this.eventId = fromUrl || DEFAULT_EVENT_ID
   }
@@ -685,12 +644,9 @@ export class SupabaseStore implements SignupStore {
   }
 
   /**
-   * The single-event UI never runs an explicit create-event step, so
-   * add() first makes sure the bound event row exists. The insert is
-   * ignore-on-conflict: an event the host already created (through
-   * createEvent) is never overwritten. The admin token for an
-   * auto-created event is minted here and kept in this browser,
-   * under the same rule as guest edit tokens: only its hash is sent.
+   * add() has no create-event step, so ensure the bound event row exists
+   * first (ignore-on-conflict upsert). The auto-created event's admin token
+   * is minted here and kept in this browser; only its hash is sent.
    */
   private async ensureEvent(): Promise<void> {
     const key = `potluck:admin-token:${this.eventId}`
