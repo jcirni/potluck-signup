@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Signup } from './types.ts'
+import type { PotluckEvent, Signup } from './types.ts'
+import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS } from './types.ts'
 
 /**
  * Regression tests for the guest edit-token flow (mocked Supabase client
@@ -22,6 +23,10 @@ vi.mock('@supabase/supabase-js', () => {
       },
       order() {
         return builder
+      },
+      maybeSingle() {
+        const rows = [...table.values()].filter((r) => filters.every(([c, v]) => r[c] === v))
+        return Promise.resolve({ data: rows[0] ?? null, error: null })
       },
       then(resolve: (v: unknown) => void, reject: (e: unknown) => void) {
         const rows = [...table.values()]
@@ -65,6 +70,21 @@ vi.mock('@supabase/supabase-js', () => {
         if (p.needOven != null) row.need_oven = p.needOven
         if (p.allergies != null) row.allergies = p.allergies
         if (p.servings != null) row.servings = p.servings
+        return { error: null }
+      }
+      if (fn === 'update_event_as_admin') {
+        const row = db.events.get(args.p_event_id as string)
+        if (!row || row.admin_token_hash !== args.p_admin_token_hash) {
+          return { error: { message: 'Not authorized for this event.' } }
+        }
+        const p = args.p_patch as Record<string, unknown>
+        // Same whitelist + coalesce semantics as the SQL function.
+        if (p.name != null) row.name = p.name
+        if (p.date != null) row.date = p.date
+        if (p.headcount != null) row.headcount = p.headcount
+        if (p.targets != null) row.targets = p.targets
+        if (p.dietaryNeeds != null) row.dietary_needs = p.dietaryNeeds
+        if (p.accent != null) row.accent = p.accent
         return { error: null }
       }
       if (fn === 'delete_signup') {
@@ -190,6 +210,34 @@ describe('SupabaseStore guest edit token across reloads', () => {
     await expect(new SupabaseStore().remove('signup-1')).rejects.toThrow(
       'Supabase request failed: Not authorized to remove this signup.',
     )
+  })
+
+  it('round-trips the event accent and updates it only with the admin hash', async () => {
+    const store = new SupabaseStore()
+    const event: PotluckEvent = {
+      id: 'friendsgiving',
+      name: 'Friendsgiving',
+      date: '2026-11-26',
+      headcount: 12,
+      targets: { ...DEFAULT_TARGETS },
+      dietaryNeeds: { ...EMPTY_DIETARY_NEEDS },
+      accent: 'forest',
+      createdAt: '2026-11-14T00:00:00.000Z',
+    }
+    await store.createEvent(event, 'admin-hash')
+    expect(db.events.get('friendsgiving')?.accent).toBe('forest')
+    expect((await store.getEvent('friendsgiving'))?.accent).toBe('forest')
+
+    await expect(store.updateEvent('friendsgiving', { accent: 'slate' }, 'wrong-hash')).rejects.toThrow(
+      'Not authorized for this event.',
+    )
+    await store.updateEvent('friendsgiving', { accent: 'slate' }, 'admin-hash')
+    expect((await store.getEvent('friendsgiving'))?.accent).toBe('slate')
+  })
+
+  it('the auto-created event starts with the brass accent', async () => {
+    await new SupabaseStore().add(makeSignup())
+    expect(db.events.get('friendsgiving')?.accent).toBe('brass')
   })
 
   it('the auto-created event admin token is stable across reloads', async () => {

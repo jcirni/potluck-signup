@@ -85,6 +85,14 @@ describe('cleanEvent', () => {
     })
   })
 
+  it('keeps a valid accent and defaults anything else to brass', () => {
+    expect(cleanEvent(rawEvent({ accent: 'forest' }))?.accent).toBe('forest')
+    expect(cleanEvent(rawEvent({ accent: 'burgundy' }))?.accent).toBe('burgundy')
+    expect(cleanEvent(rawEvent({ accent: 'neon' }))?.accent).toBe('brass')
+    expect(cleanEvent(rawEvent({ accent: 42 }))?.accent).toBe('brass')
+    expect(cleanEvent(rawEvent())?.accent).toBe('brass')
+  })
+
   it('defaults date and headcount when absent', () => {
     const e = cleanEvent({ id: 'x', name: 'X', targets: { ...DEFAULT_TARGETS } })
     expect(e).toMatchObject({ date: '', headcount: 0 })

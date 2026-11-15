@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Course, DietaryNeeds, PotluckEvent, Signup, Targets } from './types.ts'
-import { COURSES, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isCourse } from './types.ts'
+import { COURSES, DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isAccent, isCourse } from './types.ts'
 
 export type StoreMode = 'local' | 'url' | 'apps-script' | 'supabase'
 
@@ -105,6 +105,11 @@ function readTokens(): Record<string, string> {
   }
 }
 
+/** Admin token this browser holds for an event (minted when it first ensures the event), if any. */
+export function eventAdminToken(eventId: string): string | undefined {
+  return localStorage.getItem(`potluck:admin-token:${eventId}`) ?? undefined
+}
+
 /** Hash of the edit token this browser holds for a signup, if any. */
 async function storedEditTokenHash(id: string): Promise<string | undefined> {
   const token = readTokens()[id]
@@ -153,6 +158,8 @@ export function cleanEvent(raw: unknown): PotluckEvent | null {
     headcount: typeof r.headcount === 'number' ? r.headcount : 0,
     targets,
     dietaryNeeds: cleanDietaryNeeds(r.dietaryNeeds),
+    // Lenient like dietaryNeeds: events stored before accents existed fall back to brass.
+    accent: isAccent(r.accent) ? r.accent : DEFAULT_ACCENT,
     createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
   }
 }
@@ -518,6 +525,7 @@ export class SupabaseStore implements SignupStore {
       headcount: event.headcount,
       targets: event.targets,
       dietary_needs: event.dietaryNeeds,
+      accent: event.accent,
       admin_token_hash: adminTokenHash,
     }
   }
@@ -547,6 +555,7 @@ export class SupabaseStore implements SignupStore {
       headcount: r.headcount,
       targets: r.targets,
       dietaryNeeds: r.dietary_needs,
+      accent: r.accent,
       createdAt: r.created_at,
     })
   }
@@ -577,7 +586,7 @@ export class SupabaseStore implements SignupStore {
   async getEvent(id: string): Promise<PotluckEvent | null> {
     const { data, error } = await this.client()
       .from('events')
-      .select('id,name,date,headcount,targets,dietary_needs,created_at')
+      .select('id,name,date,headcount,targets,dietary_needs,accent,created_at')
       .eq('id', id)
       .maybeSingle()
     if (error) throw new Error(`Supabase request failed: ${error.message}`)
@@ -665,6 +674,7 @@ export class SupabaseStore implements SignupStore {
           headcount: 0,
           targets: DEFAULT_TARGETS,
           dietary_needs: EMPTY_DIETARY_NEEDS,
+          accent: DEFAULT_ACCENT,
           admin_token_hash: await sha256Hex(token),
         },
         { onConflict: 'id', ignoreDuplicates: true },

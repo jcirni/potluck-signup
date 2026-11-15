@@ -9,6 +9,7 @@ export const SAMPLE_EVENT: PotluckEvent = {
   headcount: 0,
   targets: { ...DEFAULT_TARGETS },
   dietaryNeeds: { ...EMPTY_DIETARY_NEEDS },
+  accent: 'brass',
   createdAt: '2024-11-01T00:00:00.000Z',
 }
 

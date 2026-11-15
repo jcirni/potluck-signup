@@ -25,6 +25,17 @@ export const EMPTY_DIETARY_NEEDS: DietaryNeeds = {
   noPork: 0,
 }
 
+/** Per-event accent colors; each one re-skins the CSS variables. */
+export const ACCENTS = ['brass', 'burgundy', 'forest', 'slate'] as const
+
+export type Accent = (typeof ACCENTS)[number]
+
+export const DEFAULT_ACCENT: Accent = 'brass'
+
+export function isAccent(value: unknown): value is Accent {
+  return typeof value === 'string' && (ACCENTS as readonly string[]).includes(value)
+}
+
 export interface PotluckEvent {
   /** URL-safe slug, used as ?event= in the share link. */
   id: string
@@ -35,6 +46,8 @@ export interface PotluckEvent {
   headcount: number
   targets: Targets
   dietaryNeeds: DietaryNeeds
+  /** Host-picked accent color for this event's page. */
+  accent: Accent
   createdAt: string
 }
 

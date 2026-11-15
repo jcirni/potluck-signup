@@ -151,6 +151,7 @@ describe('buildICS', () => {
       headcount: 12,
       targets: DEFAULT_TARGETS,
       dietaryNeeds: EMPTY_DIETARY_NEEDS,
+      accent: 'brass',
       createdAt: '2026-11-14T00:00:00.000Z',
     }
     const ics = buildICS(event, [signup({ id: '1', name: 'Joe', dish: 'Salmon' })])
@@ -168,6 +169,7 @@ describe('buildICS', () => {
       headcount: 0,
       targets: DEFAULT_TARGETS,
       dietaryNeeds: EMPTY_DIETARY_NEEDS,
+      accent: 'brass',
       createdAt: '2026-11-14T00:00:00.000Z',
     }
     expect(buildICS(event, [])).toBe('')

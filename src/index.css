@@ -98,6 +98,16 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .chip { border-radius: 999px; padding: 1px 8px; font-size: 0.75em; font-weight: 700; color: #1c160d; white-space: nowrap; }
 .badge { border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 7px; font-size: 0.75em; color: var(--ink-dim); white-space: nowrap; }
 .sticky-signup { display: none; }
+[data-accent='burgundy'] { --accent: #c96f83; --accent-bright: #e09bab; --accent-ink: #260d14; --accent-soft: rgba(201, 111, 131, 0.13); --line: rgba(201, 111, 131, 0.3); }
+[data-accent='forest'] { --accent: #9db87c; --accent-bright: #bcd39f; --accent-ink: #131f0c; --accent-soft: rgba(157, 184, 124, 0.13); --line: rgba(157, 184, 124, 0.3); }
+[data-accent='slate'] { --accent: #9db4cc; --accent-bright: #bfd2e6; --accent-ink: #0e1620; --accent-soft: rgba(157, 180, 204, 0.13); --line: rgba(157, 180, 204, 0.3); }
+.swatches { display: flex; justify-content: center; gap: 10px; margin-top: 16px; }
+.swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+.swatch.selected { border-color: var(--ink); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px currentColor; }
+.swatch[data-swatch='brass'] { background: #c9a24b; color: #c9a24b; }
+.swatch[data-swatch='burgundy'] { background: #a63d57; color: #c96f83; }
+.swatch[data-swatch='forest'] { background: #5f7d4a; color: #9db87c; }
+.swatch[data-swatch='slate'] { background: #5b718c; color: #9db4cc; }
 @media (max-width: 800px) {
   .layout { flex-direction: column; }
   aside { position: static; width: 100%; }

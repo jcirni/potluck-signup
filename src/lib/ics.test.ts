@@ -10,6 +10,7 @@ function event(partial: Partial<PotluckEvent>): PotluckEvent {
     headcount: 12,
     targets: DEFAULT_TARGETS,
     dietaryNeeds: EMPTY_DIETARY_NEEDS,
+    accent: 'brass',
     createdAt: '2026-11-14T00:00:00.000Z',
     ...partial,
   }

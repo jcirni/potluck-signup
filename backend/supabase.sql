@@ -10,12 +10,14 @@ create table if not exists public.events (
   headcount integer not null default 0 check (headcount >= 0),
   targets jsonb not null default '{"Appetizers":2,"Mains":3,"Veggies":2,"Sides":3,"Desserts":2,"Drinks":3,"Supplies":4}'::jsonb,
   dietary_needs jsonb not null default '{"vegetarian":0,"vegan":0,"glutenFree":0,"noPork":0}'::jsonb,
+  accent text not null default 'brass' check (accent in ('brass', 'burgundy', 'forest', 'slate')),
   admin_token_hash text not null,
   created_at timestamptz not null default now()
 );
 
 -- Column guards so re-running on an earlier draft adds missing columns instead of failing.
 alter table public.events add column if not exists dietary_needs jsonb not null default '{"vegetarian":0,"vegan":0,"glutenFree":0,"noPork":0}'::jsonb;
+alter table public.events add column if not exists accent text not null default 'brass' check (accent in ('brass', 'burgundy', 'forest', 'slate'));
 
 create table if not exists public.signups (
   id text primary key,
@@ -240,7 +242,8 @@ begin
     date = coalesce((p_patch ->> 'date')::date, date),
     headcount = coalesce((p_patch ->> 'headcount')::integer, headcount),
     targets = coalesce(p_patch -> 'targets', targets),
-    dietary_needs = coalesce(p_patch -> 'dietaryNeeds', dietary_needs)
+    dietary_needs = coalesce(p_patch -> 'dietaryNeeds', dietary_needs),
+    accent = coalesce(p_patch ->> 'accent', accent)
   where id = p_event_id;
 end;
 $$;

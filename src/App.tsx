@@ -9,14 +9,28 @@ import {
   SUPABASE_KEY_STORAGE_KEY,
   SUPABASE_URL_STORAGE_KEY,
   createStore,
+  eventAdminToken,
   forgetToken,
   getStoredSetting,
   ownsSignup,
   setStoredSetting,
+  sha256Hex,
   type SignupStore,
   type StoreMode,
 } from './lib/storage.ts'
-import { COURSES, DEFAULT_TARGETS, isCourse, type Course, type PotluckEvent, type Signup, type Targets } from './lib/types.ts'
+import {
+  ACCENTS,
+  COURSES,
+  DEFAULT_ACCENT,
+  DEFAULT_TARGETS,
+  isAccent,
+  isCourse,
+  type Accent,
+  type Course,
+  type PotluckEvent,
+  type Signup,
+  type Targets,
+} from './lib/types.ts'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -26,6 +40,7 @@ interface BeforeInstallPromptEvent extends Event {
 const MODE_KEY = 'potluck:store-mode'
 const TARGETS_KEY = 'potluck:targets:v1'
 const EVENT_KEY = 'potluck:event-name'
+const ACCENT_KEY = 'potluck:accent'
 
 function loadTargets(): Targets {
   try {
@@ -74,6 +89,10 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [event, setEvent] = useState<PotluckEvent | null>(null)
+  const [accent, setAccent] = useState<Accent>(() => {
+    const saved = localStorage.getItem(ACCENT_KEY)
+    return isAccent(saved) ? saved : DEFAULT_ACCENT
+  })
   const [dishes, setDishes] = useState<Dish[]>([])
   const [dishFilter, setDishFilter] = useState('')
   const [pickedDishId, setPickedDishId] = useState<string | null>(null)
@@ -141,7 +160,13 @@ export default function App() {
     void refresh(s, mode === 'local' || mode === 'url')
     // The event record carries the date, RSVP headcount, and accent; modes without one leave it null.
     setEvent(null)
-    void s.getEvent(s.eventId).then(setEvent).catch(() => setEvent(null))
+    void s
+      .getEvent(s.eventId)
+      .then((ev) => {
+        setEvent(ev)
+        if (ev) setAccent(ev.accent)
+      })
+      .catch(() => setEvent(null))
   }, [mode, refresh])
 
   useEffect(() => {
@@ -204,6 +229,26 @@ export default function App() {
   function saveEventName(name: string) {
     setEventName(name)
     localStorage.setItem(EVENT_KEY, name)
+  }
+
+  // Accent editing is the host's: on Supabase that means holding the event's admin token.
+  const canEditAccent = mode === 'supabase' ? eventAdminToken(store.eventId) !== undefined : true
+
+  /** Re-skin at once, then persist: admin RPC on Supabase, the stored event record elsewhere. */
+  async function pickAccent(next: Accent) {
+    setAccent(next)
+    localStorage.setItem(ACCENT_KEY, next)
+    try {
+      if (mode === 'supabase') {
+        const token = eventAdminToken(store.eventId)
+        if (token) await store.updateEvent(store.eventId, { accent: next }, await sha256Hex(token))
+      } else if (event) {
+        await store.updateEvent(store.eventId, { accent: next })
+      }
+      setEvent((prev) => (prev ? { ...prev, accent: next } : prev))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save the accent color.')
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -303,11 +348,27 @@ export default function App() {
   }
 
   return (
-    <div className="page">
+    <div className="page" data-accent={accent}>
       <header className="hero">
         <p className="hero-eyebrow">Potluck signup</p>
         <h1 className="hero-name">{eventName}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
+        {canEditAccent && (
+          <div className="swatches" role="group" aria-label="Event accent color">
+            {ACCENTS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                className={`swatch${accent === a ? ' selected' : ''}`}
+                data-swatch={a}
+                onClick={() => void pickAccent(a)}
+                aria-label={`${a} accent`}
+                aria-pressed={accent === a}
+                title={a}
+              />
+            ))}
+          </div>
+        )}
         <div className="stats">
           <div className="stat">
             <span className="stat-num">{signups.length}</span>
