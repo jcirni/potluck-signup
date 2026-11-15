@@ -59,7 +59,7 @@ h3 { margin: 16px 0 6px; }
 .row button:hover, .row a.button:hover, .settings button:hover { border-color: var(--line); }
 button.primary { background: var(--ink); color: var(--bg); border: 0; padding: 10px 22px; border-radius: 999px; font-weight: 700; }
 button.primary:hover { background: var(--accent); }
-button.link { background: none; border: 0; color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+button.link, a.link { background: none; border: 0; color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; padding: 0; }
 button.link.danger { color: var(--danger); }
 .menu-band { width: min(1068px, calc(100% - 32px)); margin: 22px auto 2px; }
 .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px 22px; align-items: start; }
@@ -139,10 +139,6 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .chip { border-radius: 999px; padding: 1px 8px; font-size: 0.75em; font-weight: 700; color: #1c160d; white-space: nowrap; }
 .badge { border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 7px; font-size: 0.75em; color: var(--ink-dim); white-space: nowrap; }
 .sticky-signup { display: none; }
-.hero-top { display: flex; justify-content: flex-start; margin: -14px 0 2px; }
-.home-link { display: inline-flex; align-items: center; gap: 7px; background: var(--panel); border: 1px solid var(--line-soft); border-radius: 999px; padding: 5px 12px 5px 7px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 0.85em; }
-.home-link:hover { border-color: var(--line); }
-.home-link img { display: block; }
 .home-hero { padding-top: 30px; }
 .home-icon { display: block; margin: 0 auto 6px; }
 .home-tagline { margin: 6px auto 4px; max-width: 540px; color: var(--ink-dim); font-size: 1.05em; line-height: 1.5; }

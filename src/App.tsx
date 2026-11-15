@@ -555,12 +555,6 @@ export default function App() {
           <span />
           <span />
         </button>
-        <div className="hero-top">
-          <a className="home-link" href="./">
-            <img src="icons/icon.svg" alt="" width={20} height={20} />
-            Bring a Dish
-          </a>
-        </div>
         <p className="hero-eyebrow">Bring a Dish</p>
         <h1 className="hero-name">{displayEventName(event, eventName)}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
@@ -990,6 +984,10 @@ export default function App() {
       </div>
 
       <footer className="page-footer">
+        <a className="link" href="./">
+          Home
+        </a>
+        <span className="footer-sep" aria-hidden="true">·</span>
         <button type="button" className="link" onClick={() => setManageOpen(true)}>
           Manage event
         </button>
