@@ -62,7 +62,7 @@ h3 { margin: 16px 0 6px; font-weight: 600; }
 .row button:hover, .settings button:hover { border-color: var(--line); }
 .primary { background: var(--accent); color: var(--accent-ink); border: 0; padding: 10px 22px; border-radius: 8px; font-weight: 700; }
 .primary:hover { background: var(--accent-bright); }
-button.link { background: none; border: 0; color: var(--accent-bright); text-decoration: underline; padding: 0; }
+button.link { background: none; border: 0; color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; padding: 0; }
 button.link.danger { color: var(--danger); }
 .menu { list-style: none; padding: 0; margin: 0; }
 .menu li { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; }
@@ -96,12 +96,15 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .hero-eyebrow { margin: 0; font-size: 0.8em; letter-spacing: 0.35em; text-transform: uppercase; color: var(--accent); }
 .hero-name { margin: 8px 0 4px; font-size: 3em; font-weight: 600; line-height: 1.05; }
 .hero-date { margin: 0; font-family: var(--font-display); font-style: italic; font-size: 1.15em; color: var(--ink-dim); }
-.stats { display: flex; justify-content: center; flex-wrap: wrap; margin-top: 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.stat { display: flex; flex-direction: column; gap: 2px; padding: 12px 22px; }
+.stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; max-width: 760px; margin: 20px auto 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 10px; min-width: 0; text-align: center; }
 .stat + .stat { border-left: 1px solid var(--line-soft); }
 .stat-num { font-family: var(--font-display); font-size: 1.7em; font-weight: 600; color: var(--accent-bright); }
-.stat-label { font-size: 0.75em; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
-.gap-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.stat-label { font-size: 0.75em; letter-spacing: 0.12em; line-height: 1.35; text-transform: uppercase; color: var(--ink-dim); }
+.gap-list { list-style: none; padding: 0; margin: 0; }
+.gap-list li { padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.gap-list li:first-child { padding-top: 2px; }
+.gap-list li:last-child { padding-bottom: 0; border-bottom: 0; }
 .gap-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .gapbar { height: 8px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line-soft); overflow: hidden; margin: 5px 0; }
 .gapbar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); transition: width 0.4s ease; }
@@ -131,7 +134,16 @@ summary { cursor: pointer; color: var(--ink-dim); }
   aside { position: static; width: 100%; }
   .form { grid-template-columns: 1fr; }
   .hero-name { font-size: 2.2em; }
-  .stat { padding: 10px 14px; }
+  .stat { padding: 10px 6px; }
+  .stat-num { font-size: 1.4em; }
+  .stat-label { font-size: 0.68em; letter-spacing: 0.1em; }
+  .page-footer { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
   .sticky-signup { display: block; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 20; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px; padding: 13px 34px; font-weight: 700; box-shadow: var(--shadow); }
   .drawer { top: auto; bottom: 0; left: 0; right: 0; width: auto; height: auto; max-height: 88dvh; border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; animation: drawer-in-y 0.22s ease; }
+}
+@media (max-width: 560px) {
+  .stats[data-count='4'] { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+  .stats[data-count='4'] .stat + .stat { border-left: 0; }
+  .stats[data-count='4'] .stat:nth-child(2n) { border-left: 1px solid var(--line-soft); }
+  .stats[data-count='4'] .stat:nth-child(n + 3) { border-top: 1px solid var(--line-soft); }
 }

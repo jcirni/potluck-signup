@@ -463,7 +463,7 @@ export default function App() {
         <p className="hero-eyebrow">Potluck signup</p>
         <h1 className="hero-name">{displayEventName(event, eventName)}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
-        <div className="stats">
+        <div className="stats" data-count={event !== null && event.headcount > 0 ? 4 : 3}>
           <div className="stat">
             <span className="stat-num">{signups.length}</span>
             <span className="stat-label">{signups.length === 1 ? 'person' : 'people'} signed up</span>
