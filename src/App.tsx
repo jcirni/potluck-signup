@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cuisineColor, loadCatalog, type Dish } from './lib/catalog.ts'
+import { createUniqueEvent, eventLinks, type CreatedEvent } from './lib/eventCreate.ts'
 import { allergyRollup, computeGaps, findDuplicates, neededCourses, ovenCount, type CourseGap } from './lib/gaps.ts'
+import { buildICS, icsFilename } from './lib/ics.ts'
+import { isIosDevice, isStandalone } from './lib/install.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
 import {
   APPS_SCRIPT_URL_STORAGE_KEY,
@@ -8,6 +11,7 @@ import {
   DEFAULT_SUPABASE_URL,
   SUPABASE_KEY_STORAGE_KEY,
   SUPABASE_URL_STORAGE_KEY,
+  captureAdminTokenFromUrl,
   createStore,
   eventAdminToken,
   forgetToken,
@@ -88,7 +92,17 @@ export default function App() {
   const [confirmClearSamples, setConfirmClearSamples] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createForm, setCreateForm] = useState({ name: '', date: '', headcount: '' })
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
+  const [created, setCreated] = useState<CreatedEvent | null>(null)
+  const [copiedLink, setCopiedLink] = useState('')
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [standalone] = useState(isStandalone)
+  const [justInstalled, setJustInstalled] = useState(false)
+  const [iosDevice] = useState(isIosDevice)
+  const [showIosHint, setShowIosHint] = useState(false)
   const [event, setEvent] = useState<PotluckEvent | null>(null)
   const [accent, setAccent] = useState<Accent>(() => {
     const saved = localStorage.getItem(ACCENT_KEY)
@@ -106,7 +120,10 @@ export default function App() {
       e.preventDefault()
       setInstallPrompt(e as BeforeInstallPromptEvent)
     }
-    const onInstalled = () => setInstallPrompt(null)
+    const onInstalled = () => {
+      setInstallPrompt(null)
+      setJustInstalled(true)
+    }
     window.addEventListener('beforeinstallprompt', onBeforeInstall)
     window.addEventListener('appinstalled', onInstalled)
     return () => {
@@ -115,11 +132,14 @@ export default function App() {
     }
   }, [])
 
-  // The management drawer closes on Escape and locks page scroll while open.
+  // The drawer and create sheet close on Escape and lock page scroll while open.
   useEffect(() => {
-    if (!manageOpen) return
+    if (!manageOpen && !createOpen) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setManageOpen(false)
+      if (e.key === 'Escape') {
+        setManageOpen(false)
+        setCreateOpen(false)
+      }
     }
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
@@ -127,7 +147,7 @@ export default function App() {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = ''
     }
-  }, [manageOpen])
+  }, [manageOpen, createOpen])
 
   const installApp = useCallback(async () => {
     if (!installPrompt) return
@@ -165,6 +185,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    // An admin link opened in a new browser hands this browser its host token.
+    captureAdminTokenFromUrl()
     const s = createStore(mode)
     setStore(s)
     setConfirmRemoveId(null)
@@ -203,6 +225,9 @@ export default function App() {
   const allergies = useMemo(() => allergyRollup(signups), [signups])
   const ovens = ovenCount(signups)
   const hasSample = signups.some((s) => s.sample)
+  // '' until the event has a date; that is what gates the calendar button.
+  const icsText = useMemo(() => (event ? buildICS(event, signups) : ''), [event, signups])
+  const showInstallButton = !standalone && !justInstalled && (installPrompt !== null || iosDevice)
   const pickedDish = useMemo(() => dishes.find((d) => d.id === pickedDishId) ?? null, [dishes, pickedDishId])
   const filteredDishes = useMemo(() => {
     const q = dishFilter.trim().toLowerCase()
@@ -347,6 +372,73 @@ export default function App() {
     )
   }
 
+  /** Share the .ics through the share sheet when files are supported; download it otherwise. */
+  async function addToCalendar() {
+    if (!event || !icsText) return
+    const file = new File([icsText], icsFilename(event), { type: 'text/calendar' })
+    if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: event.name })
+      } catch {
+        // The guest dismissed the share sheet; nothing to do.
+      }
+      return
+    }
+    const url = URL.createObjectURL(new Blob([icsText], { type: 'text/calendar' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = icsFilename(event)
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function openCreate() {
+    setManageOpen(false)
+    setCreated(null)
+    setCreateError('')
+    setCopiedLink('')
+    setCreateOpen(true)
+  }
+
+  async function submitCreate(e: React.FormEvent) {
+    e.preventDefault()
+    const name = createForm.name.trim()
+    if (!name) {
+      setCreateError('Give your potluck a name first.')
+      return
+    }
+    setCreateError('')
+    setCreating(true)
+    try {
+      const result = await createUniqueEvent(store, {
+        name,
+        date: createForm.date,
+        headcount: Math.max(0, Number(createForm.headcount) || 0),
+      })
+      setCreated(result)
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Could not create the event.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  function copyCreatedLink(which: 'guest' | 'admin', url: string) {
+    void navigator.clipboard.writeText(url).then(
+      () => setCopiedLink(which),
+      () => setCreateError('Could not copy. Select the link text and copy it by hand.'),
+    )
+  }
+
+  // Footer install: the captured prompt when there is one, the iOS hint otherwise.
+  async function installFromFooter() {
+    if (installPrompt) {
+      await installApp()
+      return
+    }
+    if (iosDevice) setShowIosHint((v) => !v)
+  }
+
   function startEdit(s: Signup) {
     setConfirmRemoveId(null)
     setPickedDishId(s.dishId ?? null)
@@ -403,6 +495,11 @@ export default function App() {
           <button type="button" className="link" onClick={copyShareLink}>
             Copy share link
           </button>
+          {icsText && (
+            <button type="button" className="link" onClick={() => void addToCalendar()}>
+              Add to calendar
+            </button>
+          )}
         </div>
       </header>
 
@@ -654,6 +751,21 @@ export default function App() {
         <button type="button" className="link" onClick={() => setManageOpen(true)}>
           Manage event
         </button>
+        <span className="footer-sep" aria-hidden="true">·</span>
+        <button type="button" className="link" onClick={openCreate}>
+          Start your own potluck
+        </button>
+        {showInstallButton && (
+          <>
+            <span className="footer-sep" aria-hidden="true">·</span>
+            <button type="button" className="link" onClick={() => void installFromFooter()}>
+              Add to home screen
+            </button>
+          </>
+        )}
+        {showIosHint && (
+          <p className="hint">On iPhone or iPad: tap the Share button in Safari, then &ldquo;Add to Home Screen&rdquo;.</p>
+        )}
       </footer>
 
       {manageOpen && (
@@ -795,6 +907,16 @@ export default function App() {
               </div>
             </section>
 
+            <section className="drawer-section">
+              <h3>Your own potluck</h3>
+              <p className="hint">Hosting a different event? Create it and get your own share and admin links.</p>
+              <div className="row">
+                <button type="button" onClick={openCreate}>
+                  Start your own potluck
+                </button>
+              </div>
+            </section>
+
             {hasSample && (
               <section className="drawer-section">
                 <h3>Sample data</h3>
@@ -822,7 +944,126 @@ export default function App() {
         </>
       )}
 
-      {!formInView && !manageOpen && (
+      {createOpen && (
+        <>
+          <div className="drawer-backdrop" onClick={() => setCreateOpen(false)} />
+          <div className="drawer" role="dialog" aria-modal="true" aria-label="Start your own potluck">
+            <div className="drawer-head">
+              <h2>Start your own potluck</h2>
+              <button type="button" className="drawer-close" onClick={() => setCreateOpen(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+
+            {created ? (
+              <section className="drawer-section">
+                <p className="good">
+                  <strong>{created.event.name}</strong> is ready.
+                </p>
+                {(() => {
+                  // Snapshot mode carries the event in the link itself, so both links are the current URL.
+                  const links =
+                    mode === 'url'
+                      ? { guest: window.location.href, admin: window.location.href }
+                      : eventLinks(`${window.location.origin}${window.location.pathname}`, created.event.id, created.adminToken)
+                  return (
+                    <>
+                      <h3>Share link for guests</h3>
+                      <p className="share-link">
+                        <code>{links.guest}</code>
+                      </p>
+                      <div className="row">
+                        <button type="button" onClick={() => copyCreatedLink('guest', links.guest)}>
+                          {copiedLink === 'guest' ? 'Copied' : 'Copy share link'}
+                        </button>
+                      </div>
+                      <h3>Your admin link</h3>
+                      <p className="share-link">
+                        <code>{links.admin}</code>
+                      </p>
+                      <div className="row">
+                        <button type="button" onClick={() => copyCreatedLink('admin', links.admin)}>
+                          {copiedLink === 'admin' ? 'Copied' : 'Copy admin link'}
+                        </button>
+                      </div>
+                      <p className="hint">
+                        The admin link is your host key: it unlocks event settings, so keep it private and share only
+                        the guest link.
+                      </p>
+                      <div className="row">
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={() => {
+                            window.location.href = links.admin
+                          }}
+                        >
+                          Go to my event
+                        </button>
+                        <button type="button" onClick={() => setCreateOpen(false)}>
+                          Done
+                        </button>
+                      </div>
+                    </>
+                  )
+                })()}
+              </section>
+            ) : (
+              <form onSubmit={submitCreate}>
+                <section className="drawer-section">
+                  <div className="settings">
+                    <label>
+                      Event name
+                      <input
+                        value={createForm.name}
+                        onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                        maxLength={120}
+                        placeholder="e.g. Friendsgiving 2026"
+                        required
+                      />
+                    </label>
+                    <label>
+                      Date (optional)
+                      <input
+                        type="date"
+                        value={createForm.date}
+                        onChange={(e) => setCreateForm({ ...createForm, date: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Rough headcount (optional)
+                      <input
+                        type="number"
+                        min={0}
+                        value={createForm.headcount}
+                        onChange={(e) => setCreateForm({ ...createForm, headcount: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                  {createError && (
+                    <p className="notice error" role="alert">
+                      {createError}
+                    </p>
+                  )}
+                  {mode === 'apps-script' && (
+                    <p className="hint">
+                      Shared events need the Supabase storage mode; a Google Sheet hosts one event only. Switch it
+                      under Manage event, then create yours.
+                    </p>
+                  )}
+                  <div className="row">
+                    <button type="submit" className="primary" disabled={creating || mode === 'apps-script'}>
+                      {creating ? 'Creating…' : 'Create event'}
+                    </button>
+                  </div>
+                </section>
+              </form>
+            )}
+          </div>
+        </>
+      )}
+
+      {!formInView && !manageOpen && !createOpen && (
         <button type="button" className="sticky-signup" onClick={scrollToForm}>
           {editingId ? 'Back to the form' : 'Sign up'}
         </button>
