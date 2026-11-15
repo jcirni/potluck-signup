@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { cuisineColor, loadCatalog, type Dish } from './lib/catalog.ts'
+import { cuisineColor, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
 import { createUniqueEvent, eventLinks, type CreatedEvent } from './lib/eventCreate.ts'
-import { allergyRollup, computeGaps, findDuplicates, neededCourses, ovenCount, type CourseGap } from './lib/gaps.ts'
+import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
 import { displayEventName } from './lib/eventName.ts'
 import { buildICS, icsFilename, shareOrDownloadIcs } from './lib/ics.ts'
 import { installAction, isIosDevice, isStandalone, shouldShowInstallButton } from './lib/install.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
+import { flushPendingSuggestions, submitSuggestion } from './lib/suggestions.ts'
 import {
   APPS_SCRIPT_URL_STORAGE_KEY,
   DEFAULT_SUPABASE_ANON_KEY,
@@ -113,9 +114,17 @@ export default function App() {
   const [dishes, setDishes] = useState<Dish[]>([])
   const [dishFilter, setDishFilter] = useState('')
   const [pickedDishId, setPickedDishId] = useState<string | null>(null)
+  const [dishListOpen, setDishListOpen] = useState(false)
+  const [recipePrompt, setRecipePrompt] = useState<{ dish: string; name: string; servings: number } | null>(null)
+  const [recipeOpen, setRecipeOpen] = useState(false)
+  const [recipeForm, setRecipeForm] = useState({ ingredients: '', steps: '', cuisine: '', servings: '' })
+  const [recipeError, setRecipeError] = useState('')
+  const [recipeThanks, setRecipeThanks] = useState(false)
   const [formInView, setFormInView] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const formSectionRef = useRef<HTMLElement>(null)
+  const gapSectionRef = useRef<HTMLElement>(null)
+  const menuSectionRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     const onBeforeInstall = (e: Event) => {
@@ -217,6 +226,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    // Dish suggestions parked while the backend was unreachable retry on load.
+    void flushPendingSuggestions()
+  }, [])
+
+  useEffect(() => {
     const el = formSectionRef.current
     if (!el) return
     const obs = new IntersectionObserver(([entry]) => setFormInView(entry.isIntersecting), { rootMargin: '-30% 0px -30% 0px' })
@@ -228,7 +242,6 @@ export default function App() {
   const allGaps = useMemo(() => computeGaps(signups, targets), [signups, targets])
   const duplicates = useMemo(() => findDuplicates(signups), [signups])
   const allergies = useMemo(() => allergyRollup(signups), [signups])
-  const ovens = ovenCount(signups)
   const hasSample = signups.some((s) => s.sample)
   // '' until the event has a date; that is what gates the calendar button.
   const icsText = useMemo(() => (event ? buildICS(event, signups) : ''), [event, signups])
@@ -243,10 +256,16 @@ export default function App() {
   // The search text doubles as an add-your-own entry unless it exactly names a catalog dish.
   const ownDishName = dishFilter.trim()
   const showOwnDish = ownDishName !== '' && !filteredDishes.some((d) => d.name.toLowerCase() === ownDishName.toLowerCase())
+  const dishSuggestions = useMemo(() => suggestDishes(dishes, form.dish), [dishes, form.dish])
 
   /** Sticky mobile button target: bring the signup form into view. */
   function scrollToForm() {
     formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  /** Shortcut directory target: smooth-scroll a page section into view. */
+  function scrollToSection(ref: React.RefObject<HTMLElement | null>) {
+    ref.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   /** Claim-a-dish: preselect the course, then put the guest at the top of the form. */
@@ -348,6 +367,16 @@ export default function App() {
         }
         await store.add(signup)
         setNotice('You are signed up. Your edit link is saved in this browser, so you can change or remove your dish later.')
+        // A dish that did not come from the catalog earns a quiet ask for its recipe.
+        if (dishId) {
+          setRecipePrompt(null)
+        } else {
+          setRecipePrompt({ dish, name, servings })
+          setRecipeForm({ ingredients: '', steps: '', cuisine: '', servings: servings > 0 ? String(servings) : '' })
+          setRecipeOpen(false)
+          setRecipeError('')
+          setRecipeThanks(false)
+        }
       }
       setForm(emptyForm())
       setPickedDishId(null)
@@ -356,6 +385,27 @@ export default function App() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save that signup.')
     }
+  }
+
+  /** Send the recipe behind a new dish; delivery queues locally when the backend is unreachable. */
+  async function submitRecipe(e: React.FormEvent) {
+    e.preventDefault()
+    if (!recipePrompt) return
+    if (!recipeForm.ingredients.trim()) {
+      setRecipeError('Add at least one ingredient so we can work out the nutrition.')
+      return
+    }
+    setRecipeError('')
+    await submitSuggestion({
+      dishName: recipePrompt.dish,
+      ingredients: recipeForm.ingredients,
+      steps: recipeForm.steps,
+      cuisine: recipeForm.cuisine,
+      servings: recipeForm.servings === '' ? undefined : Number(recipeForm.servings),
+      submitterName: recipePrompt.name,
+      eventId: store.eventId,
+    })
+    setRecipeThanks(true)
   }
 
   async function removeSignup(s: Signup) {
@@ -476,7 +526,7 @@ export default function App() {
         <p className="hero-eyebrow">Potluck signup</p>
         <h1 className="hero-name">{displayEventName(event, eventName)}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
-        <div className="stats" data-count={event !== null && event.headcount > 0 ? 4 : 3}>
+        <div className="stats" data-count={event !== null && event.headcount > 0 ? 3 : 2}>
           <div className="stat">
             <span className="stat-num">{signups.length}</span>
             <span className="stat-label">{signups.length === 1 ? 'person' : 'people'} signed up</span>
@@ -485,10 +535,6 @@ export default function App() {
             <span className="stat-num">{signups.length}</span>
             <span className="stat-label">dishes on the menu</span>
           </div>
-          <div className="stat">
-            <span className="stat-num">{ovens}</span>
-            <span className="stat-label">{ovens === 1 ? 'dish needs' : 'dishes need'} the oven</span>
-          </div>
           {event !== null && event.headcount > 0 && (
             <div className="stat">
               <span className="stat-num">{event.headcount}</span>
@@ -496,6 +542,17 @@ export default function App() {
             </div>
           )}
         </div>
+        <nav className="hero-nav" aria-label="Jump to a section">
+          <button type="button" onClick={() => scrollToSection(gapSectionRef)}>
+            What&rsquo;s needed
+          </button>
+          <button type="button" onClick={scrollToForm}>
+            Sign up
+          </button>
+          <button type="button" onClick={() => scrollToSection(menuSectionRef)}>
+            The menu
+          </button>
+        </nav>
         <div className="hero-actions">
           <button type="button" className="link" onClick={copyShareLink}>
             Copy share link
@@ -510,7 +567,7 @@ export default function App() {
 
       <div className="layout">
       <aside>
-        <section className="panel">
+        <section className="panel" id="needed" ref={gapSectionRef}>
           <h2>We could use more of</h2>
           {gaps.length === 0 && <p className="good">Every course has hit its target. Nice spread.</p>}
           <ul className="gap-list">
@@ -570,7 +627,7 @@ export default function App() {
           </p>
         )}
 
-        <section ref={formSectionRef} className="form-section">
+        <section ref={formSectionRef} className="form-section" id="signup">
           <h2>{editingId ? 'Edit your dish' : 'Sign up — what are you bringing?'}</h2>
           {dishes.length > 0 && (
             <div className="picker">
@@ -629,15 +686,51 @@ export default function App() {
             </label>
             <label>
               Dish
-              <input
-                value={form.dish}
-                onChange={(e) => {
-                  setForm({ ...form, dish: e.target.value })
-                  // Typing a different dish by hand un-picks the catalog dish.
-                  if (pickedDish && e.target.value !== pickedDish.name) setPickedDishId(null)
-                }}
-                required
-              />
+              <span className="dish-field">
+                <input
+                  value={form.dish}
+                  onChange={(e) => {
+                    setForm({ ...form, dish: e.target.value })
+                    setDishListOpen(true)
+                    // Typing a different dish by hand un-picks the catalog dish.
+                    if (pickedDish && e.target.value !== pickedDish.name) setPickedDishId(null)
+                  }}
+                  onFocus={() => {
+                    if (!pickedDish || pickedDish.name !== form.dish) setDishListOpen(true)
+                  }}
+                  onBlur={() => setDishListOpen(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setDishListOpen(false)
+                  }}
+                  role="combobox"
+                  aria-expanded={dishListOpen && dishSuggestions.length > 0}
+                  aria-controls="dish-suggestions"
+                  aria-autocomplete="list"
+                  required
+                />
+                {dishListOpen && dishSuggestions.length > 0 && (
+                  <ul className="suggest-list" id="dish-suggestions" role="listbox" aria-label="Catalog dishes">
+                    {dishSuggestions.map((d) => (
+                      <li key={d.id} role="option" aria-selected={d.id === pickedDishId}>
+                        <button
+                          type="button"
+                          className="picker-row"
+                          onMouseDown={(e) => {
+                            // Land the pick before the input blur closes the list.
+                            e.preventDefault()
+                            pickDish(d)
+                            setDishListOpen(false)
+                          }}
+                        >
+                          <span className="picker-name">{d.name}</span>
+                          <span className="chip" style={{ background: cuisineColor(d.cuisine) }}>{d.cuisine}</span>
+                          <span className="badge">{d.macros.calories} kcal</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </span>
             </label>
             <label>
               Course
@@ -691,9 +784,90 @@ export default function App() {
               )}
             </div>
           </form>
+
+          {recipePrompt && (
+            <div className="recipe-banner">
+              {recipeThanks ? (
+                <div className="recipe-head">
+                  <p>
+                    Thanks! Your recipe for <strong>{recipePrompt.dish}</strong> is on its way to the catalog.
+                  </p>
+                  <button type="button" className="drawer-close" onClick={() => setRecipePrompt(null)} aria-label="Dismiss">
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="recipe-head">
+                    <p>
+                      New dish — tell us what&rsquo;s in your <strong>{recipePrompt.dish}</strong> and we&rsquo;ll add
+                      it to the catalog with nutrition and recipe details.
+                    </p>
+                    <button type="button" className="drawer-close" onClick={() => setRecipePrompt(null)} aria-label="Dismiss">
+                      ×
+                    </button>
+                  </div>
+                  {!recipeOpen ? (
+                    <div className="row">
+                      <button type="button" onClick={() => setRecipeOpen(true)}>
+                        Share the recipe
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={submitRecipe} className="recipe-form">
+                      <label>
+                        Ingredients
+                        <textarea
+                          rows={4}
+                          required
+                          placeholder="One per line, with amounts if you know them"
+                          value={recipeForm.ingredients}
+                          onChange={(e) => setRecipeForm({ ...recipeForm, ingredients: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        Recipe steps (optional)
+                        <textarea
+                          rows={3}
+                          value={recipeForm.steps}
+                          onChange={(e) => setRecipeForm({ ...recipeForm, steps: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        Cuisine (optional)
+                        <input
+                          value={recipeForm.cuisine}
+                          onChange={(e) => setRecipeForm({ ...recipeForm, cuisine: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        Servings (optional)
+                        <input
+                          type="number"
+                          min={0}
+                          value={recipeForm.servings}
+                          onChange={(e) => setRecipeForm({ ...recipeForm, servings: e.target.value })}
+                        />
+                      </label>
+                      {recipeError && (
+                        <p className="notice error" role="alert">
+                          {recipeError}
+                        </p>
+                      )}
+                      <div className="row">
+                        <button type="submit" className="primary">
+                          Send recipe
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </section>
 
-        <section>
+        <section id="menu" ref={menuSectionRef}>
           <h2>The menu so far</h2>
           {!loaded ? (
             <p className="hint">Loading…</p>

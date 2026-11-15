@@ -25,10 +25,6 @@ export function neededCourses(signups: Signup[], targets: Targets): CourseGap[] 
     .sort((a, b) => b.need - a.need)
 }
 
-export function ovenCount(signups: Signup[]): number {
-  return signups.filter((s) => s.needOven).length
-}
-
 export interface DuplicateWarning {
   dish: string
   names: string[]

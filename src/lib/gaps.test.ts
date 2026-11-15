@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Dish } from './catalog.ts'
-import { allergyRollup, computeGaps, dietaryCoverage, findDuplicates, neededCourses, ovenCount, ovenPlan } from './gaps.ts'
+import { allergyRollup, computeGaps, dietaryCoverage, findDuplicates, neededCourses, ovenPlan } from './gaps.ts'
 import { buildICS } from './ics.ts'
 import { buildShoppingList } from './shopping.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, type PotluckEvent, type Signup } from './types.ts'
@@ -91,14 +91,13 @@ describe('findDuplicates', () => {
   })
 })
 
-describe('ovenCount, ovenPlan, and allergyRollup', () => {
-  it('counts oven dishes, orders the oven plan hottest first, and collects only non-empty allergy notes', () => {
+describe('ovenPlan and allergyRollup', () => {
+  it('orders the oven plan hottest first, and collects only non-empty allergy notes', () => {
     const signups = [
       signup({ id: '1', dish: 'Rolls', needOven: true, allergies: 'Nut allergy', dishId: 'dinner-rolls' }),
       signup({ id: '2', dish: 'Pie', needOven: true, allergies: '', dishId: 'pumpkin-pie' }),
       signup({ id: '3', needOven: false, allergies: '  ' }),
     ]
-    expect(ovenCount(signups)).toBe(2)
     expect(allergyRollup(signups)).toHaveLength(1)
     const dishesById = new Map<string, Dish>([
       ['dinner-rolls', dish({ id: 'dinner-rolls', logistics: { needsOven: true, ovenTempF: 375, crockpot: false, makeAhead: true, travelsWell: true, utensil: 'Basket' } })],
