@@ -178,6 +178,18 @@ export function cuisineColor(cuisine: string): string {
   return CUISINE_PALETTE[hash % CUISINE_PALETTE.length]
 }
 
+/** Autocomplete matches: name substring hits first (alphabetical), cuisine hits fill the rest. */
+export function suggestDishes(dishes: Dish[], query: string, limit = 6): Dish[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const byName = (a: Dish, b: Dish) => a.name.localeCompare(b.name)
+  const nameHits = dishes.filter((d) => d.name.toLowerCase().includes(q)).sort(byName)
+  if (nameHits.length >= limit) return nameHits.slice(0, limit)
+  const seen = new Set(nameHits.map((d) => d.id))
+  const cuisineHits = dishes.filter((d) => !seen.has(d.id) && d.cuisine.toLowerCase().includes(q)).sort(byName)
+  return [...nameHits, ...cuisineHits].slice(0, limit)
+}
+
 /** Scale a dish's ingredient quantities by a factor (0.5x, 2x, 3x). */
 export function scaleIngredients(dish: Dish, scale: number): DishIngredient[] {
   return dish.ingredients.map((ing) => ({ ...ing, quantity: Math.round(ing.quantity * scale * 100) / 100 }))

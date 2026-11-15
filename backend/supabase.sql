@@ -52,6 +52,19 @@ create table if not exists public.rsvps (
 
 create index if not exists rsvps_event_id_idx on public.rsvps (event_id);
 
+-- Dish suggestions: recipes guests share from the signup form when their dish is not in the catalog.
+create table if not exists public.dish_suggestions (
+  id uuid primary key default gen_random_uuid(),
+  dish_name text not null check (char_length(dish_name) between 1 and 120),
+  ingredients text not null check (char_length(ingredients) <= 4000),
+  steps text check (char_length(steps) <= 4000),
+  cuisine text check (char_length(cuisine) <= 40),
+  servings integer check (servings >= 0 and servings <= 500),
+  submitter_name text check (char_length(submitter_name) <= 80),
+  event_id text,
+  created_at timestamptz not null default now()
+);
+
 -- Abuse armor, part 1: at most 100 signups per event.
 create or replace function public.check_signup_cap()
 returns trigger
@@ -89,6 +102,7 @@ create trigger rsvp_cap before insert on public.rsvps
 alter table public.events enable row level security;
 alter table public.signups enable row level security;
 alter table public.rsvps enable row level security;
+alter table public.dish_suggestions enable row level security;
 
 drop policy if exists "potluck read events" on public.events;
 create policy "potluck read events" on public.events
@@ -112,6 +126,11 @@ create policy "potluck read rsvps" on public.rsvps
 
 drop policy if exists "potluck add rsvps" on public.rsvps;
 create policy "potluck add rsvps" on public.rsvps
+  for insert with check (true);
+
+-- Suggestions are write-only for guests; reading and curating them happens in the dashboard.
+drop policy if exists "potluck add dish suggestions" on public.dish_suggestions;
+create policy "potluck add dish suggestions" on public.dish_suggestions
   for insert with check (true);
 
 -- Edits/deletes only via these token-checked functions; p_patch keys are camelCase and whitelisted.

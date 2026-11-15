@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { CUISINE_PALETTE, cuisineColor, cuisinesOf, formatQuantity, scaleIngredients, validateCatalog, type Dish } from './catalog.ts'
+import { CUISINE_PALETTE, cuisineColor, cuisinesOf, formatQuantity, scaleIngredients, suggestDishes, validateCatalog, type Dish } from './catalog.ts'
 
 function dish(partial: Partial<Dish> & { id: string }): Dish {
   return {
@@ -98,6 +98,31 @@ describe('cuisineColor', () => {
   it('spreads different cuisines across the palette', () => {
     const used = new Set(['Italian', 'Mexican', 'Thai', 'Indian', 'Japanese', 'French'].map(cuisineColor))
     expect(used.size).toBeGreaterThan(1)
+  })
+})
+
+describe('suggestDishes', () => {
+  const dishes = [
+    dish({ id: 'baklava', name: 'Baklava', cuisine: 'Middle Eastern' }),
+    dish({ id: 'baked-ziti', name: 'Baked Ziti', cuisine: 'Italian' }),
+    dish({ id: 'apple-crisp', name: 'Apple Crisp', cuisine: 'American' }),
+    dish({ id: 'bruschetta', name: 'Bruschetta', cuisine: 'Italian' }),
+  ]
+
+  it('matches dish names case-insensitively by substring, alphabetical', () => {
+    expect(suggestDishes(dishes, 'BAK').map((d) => d.id)).toEqual(['baked-ziti', 'baklava'])
+  })
+
+  it('fills remaining slots with cuisine matches after name matches', () => {
+    const hits = suggestDishes(dishes, 'ita')
+    expect(hits.map((d) => d.id)).toEqual(['baked-ziti', 'bruschetta'])
+    expect(suggestDishes(dishes, 'crisp').map((d) => d.id)).toEqual(['apple-crisp'])
+  })
+
+  it('respects the limit and returns nothing for a blank query', () => {
+    expect(suggestDishes(dishes, 'a', 2)).toHaveLength(2)
+    expect(suggestDishes(dishes, '   ')).toEqual([])
+    expect(suggestDishes(dishes, 'zzz')).toEqual([])
   })
 })
 
