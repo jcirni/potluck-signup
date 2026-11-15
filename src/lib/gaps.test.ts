@@ -57,6 +57,14 @@ describe('computeGaps', () => {
       target: 3,
       need: 3,
     })
+    // Sides absorbed the retired Veggies course, target included.
+    expect(gaps.find((g) => g.course === 'Sides')).toEqual({
+      course: 'Sides',
+      count: 1,
+      target: 5,
+      need: 4,
+    })
+    expect(gaps).toHaveLength(6)
   })
 
   it('never reports a negative need once a course is covered', () => {
@@ -72,7 +80,7 @@ describe('findDuplicates', () => {
     const signups = [
       signup({ id: '1', name: 'A', dish: 'Mac and Cheese', course: 'Sides' }),
       signup({ id: '2', name: 'B', dish: 'mac and cheese ', course: 'Sides' }),
-      signup({ id: '3', name: 'C', dish: 'Salad', course: 'Veggies' }),
+      signup({ id: '3', name: 'C', dish: 'Salad', course: 'Appetizers' }),
     ]
     const warnings = findDuplicates(signups)
     expect(warnings).toHaveLength(1)

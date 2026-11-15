@@ -18,6 +18,7 @@ import {
   eventAdminToken,
   forgetToken,
   getStoredSetting,
+  mergeTargets,
   ownsSignup,
   setStoredSetting,
   sha256Hex,
@@ -53,8 +54,7 @@ const ACCENT_KEY = 'potluck:accent'
 
 function loadTargets(): Targets {
   try {
-    const raw = JSON.parse(localStorage.getItem(TARGETS_KEY) ?? '{}') as Partial<Targets>
-    return { ...DEFAULT_TARGETS, ...raw }
+    return mergeTargets(JSON.parse(localStorage.getItem(TARGETS_KEY) ?? '{}'))
   } catch {
     return { ...DEFAULT_TARGETS }
   }

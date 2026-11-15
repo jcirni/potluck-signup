@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanEvent, cleanSignup } from './storage.ts'
+import { cleanEvent, cleanSignup, mergeTargets } from './storage.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS } from './types.ts'
 
 function rawSignup(partial: Record<string, unknown> = {}): Record<string, unknown> {
@@ -60,6 +60,12 @@ describe('cleanSignup', () => {
     expect(cleanSignup(rawSignup({ allergies: 'a'.repeat(200) }))).not.toBeNull()
   })
 
+  it('folds a legacy Veggies signup into Sides instead of dropping it', () => {
+    const s = cleanSignup(rawSignup({ course: 'Veggies', dish: 'Grilled Zucchini' }))
+    expect(s).not.toBeNull()
+    expect(s).toMatchObject({ dish: 'Grilled Zucchini', course: 'Sides' })
+  })
+
   it('rejects out-of-range recipe scales but accepts the boundaries', () => {
     expect(cleanSignup(rawSignup({ scale: 0 }))).toBeNull()
     expect(cleanSignup(rawSignup({ scale: 11 }))).toBeNull()
@@ -104,5 +110,23 @@ describe('cleanEvent', () => {
     expect(cleanEvent(rawEvent({ targets: { Mains: 3 } }))).toBeNull()
     expect(cleanEvent(rawEvent({ name: 'n'.repeat(121) }))).toBeNull()
     expect(cleanEvent(rawEvent({ name: 'n'.repeat(120) }))).not.toBeNull()
+  })
+
+  it('folds a stored Veggies target into Sides for events saved before the merge', () => {
+    const legacy = { Appetizers: 2, Mains: 3, Veggies: 2, Sides: 3, Desserts: 2, Drinks: 3, Supplies: 4 }
+    const e = cleanEvent(rawEvent({ targets: legacy }))
+    expect(e?.targets.Sides).toBe(5)
+    expect(e?.targets).not.toHaveProperty('Veggies')
+    expect(e?.targets).toEqual({ ...DEFAULT_TARGETS })
+  })
+})
+
+describe('mergeTargets', () => {
+  it('adds a stored Veggies target onto Sides and keeps stored values', () => {
+    const merged = mergeTargets({ Sides: 3, Veggies: 2 })
+    expect(merged.Sides).toBe(5)
+    expect(merged).not.toHaveProperty('Veggies')
+    expect(mergeTargets({ Mains: 4 }).Mains).toBe(4)
+    expect(mergeTargets(null)).toEqual({ ...DEFAULT_TARGETS })
   })
 })

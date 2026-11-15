@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Course, DietaryNeeds, PotluckEvent, Signup, Targets } from './types.ts'
-import { COURSES, DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isAccent, isCourse } from './types.ts'
+import type { DietaryNeeds, PotluckEvent, Signup, Targets } from './types.ts'
+import { COURSES, DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isAccent, normalizeCourse } from './types.ts'
 
 export type StoreMode = 'local' | 'url' | 'apps-script' | 'supabase'
 
@@ -145,6 +145,20 @@ function cleanTargets(raw: unknown): Targets | null {
     if (typeof r[c] !== 'number') return null
     out[c] = r[c]
   }
+  // Events stored before the course merge carry a Veggies target; it folds into Sides.
+  if (typeof r.Veggies === 'number') out.Sides += r.Veggies
+  return out
+}
+
+/** Merge stored targets over the defaults, folding any legacy Veggies target into Sides. */
+export function mergeTargets(raw: unknown): Targets {
+  const out: Targets = { ...DEFAULT_TARGETS }
+  if (typeof raw !== 'object' || raw === null) return out
+  const r = raw as Record<string, unknown>
+  for (const c of COURSES) {
+    if (typeof r[c] === 'number') out[c] = r[c]
+  }
+  if (typeof r.Veggies === 'number') out.Sides += r.Veggies
   return out
 }
 
@@ -182,7 +196,9 @@ export function cleanSignup(raw: unknown): Signup | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
   if (typeof r.id !== 'string' || typeof r.name !== 'string' || typeof r.dish !== 'string') return null
-  if (typeof r.course !== 'string' || !isCourse(r.course)) return null
+  // Retired course names (Veggies) fold into their live course instead of dropping the signup.
+  const course = typeof r.course === 'string' ? normalizeCourse(r.course) : null
+  if (!course) return null
   if (typeof r.eventId !== 'string') return null
   // Length/range limits mirror the signups checks in backend/supabase.sql.
   if (r.name.length < 1 || r.name.length > 80) return null
@@ -197,7 +213,7 @@ export function cleanSignup(raw: unknown): Signup | null {
     scale: typeof r.scale === 'number' ? r.scale : undefined,
     name: r.name,
     dish: r.dish,
-    course: r.course as Course,
+    course,
     needOven: r.needOven === true,
     allergies: typeof r.allergies === 'string' ? r.allergies : '',
     servings: typeof r.servings === 'number' ? r.servings : 0,

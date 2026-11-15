@@ -34,6 +34,14 @@ describe('validateCatalog on the shipped catalog', () => {
     const ids = catalog.dishes.map((d) => d.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
+
+  it('files the retired Veggies dishes under Sides', () => {
+    const catalog = validateCatalog(rawCatalog)
+    const byCourse = new Map<string, number>()
+    for (const d of catalog.dishes) byCourse.set(d.course, (byCourse.get(d.course) ?? 0) + 1)
+    expect(byCourse.get('Sides')).toBe(40)
+    expect(byCourse.has('Veggies')).toBe(false)
+  })
 })
 
 describe('validateCatalog rejects bad data', () => {

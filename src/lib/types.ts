@@ -1,7 +1,6 @@
 export const COURSES = [
   'Appetizers',
   'Mains',
-  'Veggies',
   'Sides',
   'Desserts',
   'Drinks',
@@ -9,6 +8,15 @@ export const COURSES = [
 ] as const
 
 export type Course = (typeof COURSES)[number]
+
+/** Retired courses that stored data may still carry; reads fold them into a live course. */
+export const LEGACY_COURSES: Record<string, Course> = { Veggies: 'Sides' }
+
+/** Map a stored course string to a live course, folding retired names; null when unknown. */
+export function normalizeCourse(value: string): Course | null {
+  if (isCourse(value)) return value
+  return LEGACY_COURSES[value] ?? null
+}
 
 /** Host-set dietary needs for the event, as guest counts. */
 export interface DietaryNeeds {
@@ -87,8 +95,7 @@ export type Targets = Record<Course, number>
 export const DEFAULT_TARGETS: Targets = {
   Appetizers: 2,
   Mains: 3,
-  Veggies: 2,
-  Sides: 3,
+  Sides: 5,
   Desserts: 2,
   Drinks: 3,
   Supplies: 4,

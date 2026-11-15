@@ -88,7 +88,7 @@ about 30 days after their date.
 ## Schema notes
 
 The schema mirrors `src/lib/types.ts`. Courses are Appetizers,
-Mains, Veggies, Sides, Desserts, Drinks, and Supplies. Events carry
+Mains, Sides, Desserts, Drinks, and Supplies. Events carry
 per-course `targets` plus `dietary_needs` (host-set guest counts for
 vegetarian, vegan, glutenFree, noPork). A signup may reference a
 catalog dish (`dish_id`) with a recipe `scale`. RSVPs track

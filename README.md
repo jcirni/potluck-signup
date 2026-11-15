@@ -18,7 +18,7 @@ installable as a PWA.
 - **Signup form:** name, dish, course, needs oven, servings, allergy
   and dietary notes. Guests can claim a dish from the built-in catalog
   or type their own, and can pick a recipe scale (0.5x, 2x, and so on).
-- **Live menu grouped by course:** Appetizers, Mains, Veggies, Sides,
+- **Live menu grouped by course:** Appetizers, Mains, Sides,
   Desserts, Drinks, Supplies, with oven tags and one allergy roll-up.
 - **Gap panel ("We could use more of"):** per-course count against
   host-set targets, most needed first, plus a dietary coverage check
@@ -87,7 +87,7 @@ needs every field; `npm test` runs `validateCatalog` over the real
 file and will reject a malformed entry. Field notes:
 
 - `id`: lowercase slug, unique.
-- `course`: one of Appetizers, Mains, Veggies, Sides, Desserts,
+- `course`: one of Appetizers, Mains, Sides, Desserts,
   Drinks. (Supplies are separate `supplies` entries with just `id`,
   `name`, `description`, `estCostUsd`.)
 - `origin`: optional credit, a plain name.

@@ -829,7 +829,7 @@
   },
   {
    "cookMin": 25,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "American",
    "description": "Crispy-edged sprouts with olive oil, garlic, and a balsamic finish.",
    "estCostUsd": 8,
@@ -890,7 +890,7 @@
   },
   {
    "cookMin": 20,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "American",
    "description": "Tender carrots in a brown sugar and butter glaze.",
    "estCostUsd": 6,
@@ -952,7 +952,7 @@
   },
   {
    "cookMin": 30,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "American",
    "description": "Green beans in creamy mushroom sauce under crispy fried onions.",
    "estCostUsd": 9,
@@ -1020,7 +1020,7 @@
   },
   {
    "cookMin": 20,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "American",
    "description": "Charred broccoli florets with lemon and parmesan.",
    "estCostUsd": 7,
@@ -1082,7 +1082,7 @@
   },
   {
    "cookMin": 25,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "American",
    "description": "Mashed sweet potatoes with butter and a little maple.",
    "estCostUsd": 8,
@@ -1144,7 +1144,7 @@
   },
   {
    "cookMin": 45,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "American",
    "description": "Creamy, spoonable corn bake with a golden top.",
    "estCostUsd": 8,
@@ -3166,7 +3166,7 @@
   },
   {
    "cookMin": 45,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "French",
    "description": "Slow-cooked eggplant, zucchini, peppers, and tomato with herbs.",
    "estCostUsd": 10,
@@ -3368,7 +3368,7 @@
   },
   {
    "cookMin": 0,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "Greek/Mediterranean",
    "description": "Tomatoes, cucumber, olives, and feta with olive oil and oregano.",
    "estCostUsd": 11,
@@ -4032,7 +4032,7 @@
   },
   {
    "cookMin": 0,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "Middle Eastern",
    "description": "Parsley, tomato, and bulgur salad with lemon and olive oil.",
    "estCostUsd": 7,
@@ -4166,7 +4166,7 @@
   },
   {
    "cookMin": 0,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "North African",
    "description": "Shredded carrots with cumin, lemon, and a little honey.",
    "estCostUsd": 5,
@@ -5087,7 +5087,7 @@
   },
   {
    "cookMin": 15,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "Indonesian/Malaysian",
    "description": "Blanched vegetables and tofu with a warm peanut sauce.",
    "estCostUsd": 10,
@@ -5491,7 +5491,7 @@
   },
   {
    "cookMin": 0,
-   "course": "Veggies",
+   "course": "Sides",
    "cuisine": "Korean",
    "description": "Fermented napa cabbage with chili, garlic, and ginger. Make it days ahead.",
    "estCostUsd": 6,
@@ -7318,7 +7318,7 @@
   },
   {
    "cookMin": 15,
-   "course": "Veggies",
+   "course": "Sides",
    "description": "Eggplant roasted until silky and lacquered with a sweet white miso glaze. The dengaku classic.",
    "estCostUsd": 9,
    "id": "miso-glazed-eggplant",
@@ -7578,7 +7578,7 @@
   },
   {
    "cookMin": 0,
-   "course": "Veggies",
+   "course": "Sides",
    "description": "Cucumbers smashed so they drink up a garlicky rice vinegar and sesame dressing. Cold, crunchy, and refreshing.",
    "estCostUsd": 6,
    "id": "smashed-cucumber-salad",
@@ -11347,7 +11347,7 @@
   },
   {
    "cookMin": 60,
-   "course": "Veggies",
+   "course": "Sides",
    "description": "Collards simmered low with a smoked turkey leg, onion, and a splash of vinegar until silky. The pot liquor is half the point.",
    "estCostUsd": 12,
    "id": "collard-greens-smoked-turkey",
