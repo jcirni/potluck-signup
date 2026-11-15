@@ -54,8 +54,9 @@ h3 { margin: 16px 0 6px; }
 .checkbox { flex-direction: row !important; align-items: center; gap: 8px !important; }
 .checkbox input { accent-color: var(--accent); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-.row button, .settings button { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line-soft); border-radius: 12px; padding: 8px 14px; }
-.row button:hover, .settings button:hover { border-color: var(--line); }
+.row button, .row a.button, .settings button { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line-soft); border-radius: 12px; padding: 8px 14px; }
+.row a.button { text-decoration: none; }
+.row button:hover, .row a.button:hover, .settings button:hover { border-color: var(--line); }
 button.primary { background: var(--ink); color: var(--bg); border: 0; padding: 10px 22px; border-radius: 999px; font-weight: 700; }
 button.primary:hover { background: var(--accent); }
 button.link { background: none; border: 0; color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; padding: 0; }

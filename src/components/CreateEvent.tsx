@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { buildNewEvent, createUniqueEvent, eventLinks, randomSuffix, uniqueSlug, type CreatedEvent } from '../lib/eventCreate.ts'
 import { isSpamSubmission } from '../lib/honeypot.ts'
+import { buildLinksMailto } from '../lib/linksEmail.ts'
 import type { SignupStore, StoreMode } from '../lib/storage.ts'
 
 interface CreateEventProps {
@@ -97,6 +98,14 @@ export default function CreateEvent({ store, mode, onClose, onCreated }: CreateE
           <button type="button" onClick={() => copyLink('admin', links.admin)}>
             {copiedLink === 'admin' ? 'Copied' : 'Copy admin link'}
           </button>
+        </div>
+        <div className="row">
+          <a
+            className="button"
+            href={buildLinksMailto({ eventName: created.event.name, guestUrl: links.guest, adminUrl: links.admin })}
+          >
+            Email me these links
+          </a>
         </div>
         <p className="hint">
           The admin link is your host key: it unlocks event settings, so keep it private and share only the guest

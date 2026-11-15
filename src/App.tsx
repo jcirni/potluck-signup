@@ -6,6 +6,7 @@ import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseG
 import { displayEventName } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
 import { buildICS, icsFilename, shareOrDownloadIcs } from './lib/ics.ts'
+import { buildLinksMailto } from './lib/linksEmail.ts'
 import { installAction, isIosDevice, isStandalone, shouldShowInstallButton } from './lib/install.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
 import { flushPendingSuggestions, submitSuggestion } from './lib/suggestions.ts'
@@ -323,6 +324,18 @@ export default function App() {
 
   // Accent editing is the host's: on Supabase that means holding the event's admin token.
   const canEditAccent = mode === 'supabase' ? eventAdminToken(store.eventId) !== undefined : true
+
+  // The drawer's email link carries the host link only when this browser holds the admin token.
+  const guestLink =
+    mode === 'url'
+      ? window.location.href
+      : `${window.location.origin}${window.location.pathname}?event=${encodeURIComponent(store.eventId)}`
+  const heldAdminToken = eventAdminToken(store.eventId)
+  const linksMailto = buildLinksMailto({
+    eventName: displayEventName(event, eventName),
+    guestUrl: guestLink,
+    adminUrl: heldAdminToken && mode !== 'url' ? `${guestLink}&admin=${encodeURIComponent(heldAdminToken)}` : undefined,
+  })
 
   /** Re-skin at once, then persist: admin RPC on Supabase, the stored event record elsewhere. */
   async function pickAccent(next: Accent) {
@@ -1180,6 +1193,11 @@ export default function App() {
                 <button type="button" onClick={copyShareLink}>
                   Copy share link
                 </button>
+              </div>
+              <div className="row">
+                <a className="button" href={linksMailto}>
+                  Email me these links
+                </a>
               </div>
             </section>
 
