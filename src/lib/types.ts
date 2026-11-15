@@ -52,6 +52,10 @@ export interface PotluckEvent {
   date: string
   /** Expected headcount; 0 means not stated. RSVPs (below) are the actual count. */
   headcount: number
+  /** Where the event happens, shown under the date; absent when not stated. */
+  location?: string
+  /** Host's invitation / directions text, shown under the header; absent when not stated. */
+  details?: string
   targets: Targets
   dietaryNeeds: DietaryNeeds
   /** Host-picked accent color for this event's page. */

@@ -85,6 +85,8 @@ vi.mock('@supabase/supabase-js', () => {
         if (p.targets != null) row.targets = p.targets
         if (p.dietaryNeeds != null) row.dietary_needs = p.dietaryNeeds
         if (p.accent != null) row.accent = p.accent
+        if (p.location != null) row.location = p.location
+        if (p.details != null) row.details = p.details
         return { error: null }
       }
       if (fn === 'delete_signup') {
@@ -233,6 +235,32 @@ describe('SupabaseStore guest edit token across reloads', () => {
     )
     await store.updateEvent('friendsgiving', { accent: 'slate' }, 'admin-hash')
     expect((await store.getEvent('friendsgiving'))?.accent).toBe('slate')
+  })
+
+  it('round-trips event location and details and updates them with the admin hash', async () => {
+    const store = new SupabaseStore()
+    const event: PotluckEvent = {
+      id: 'friendsgiving',
+      name: 'Friendsgiving',
+      date: '2026-11-26',
+      headcount: 12,
+      location: 'Stratus Apartments, 820 Lenora St',
+      details: 'Buzz unit 402 when you arrive.\nParking is in the garage.',
+      targets: { ...DEFAULT_TARGETS },
+      dietaryNeeds: { ...EMPTY_DIETARY_NEEDS },
+      accent: 'brass',
+      createdAt: '2026-11-14T00:00:00.000Z',
+    }
+    await store.createEvent(event, 'admin-hash')
+    expect(db.events.get('friendsgiving')?.location).toBe('Stratus Apartments, 820 Lenora St')
+    const loaded = await store.getEvent('friendsgiving')
+    expect(loaded?.location).toBe('Stratus Apartments, 820 Lenora St')
+    expect(loaded?.details).toBe('Buzz unit 402 when you arrive.\nParking is in the garage.')
+
+    await store.updateEvent('friendsgiving', { location: 'A different hall', details: 'New details.' }, 'admin-hash')
+    const updated = await store.getEvent('friendsgiving')
+    expect(updated?.location).toBe('A different hall')
+    expect(updated?.details).toBe('New details.')
   })
 
   it('round-trips a created event name other than the demo name', async () => {

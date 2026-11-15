@@ -52,6 +52,16 @@ describe('buildICS', () => {
     expect(buildICS(event({ date: '2026-12-31' }), [])).toContain('DTEND;VALUE=DATE:20270101')
   })
 
+  it('includes an escaped LOCATION line when the event has a location', () => {
+    const ics = buildICS(event({ location: 'Stratus Apartments, 820 Lenora St' }), [])
+    expect(ics).toContain('LOCATION:Stratus Apartments\\, 820 Lenora St')
+  })
+
+  it('omits the LOCATION line when the event has no location', () => {
+    expect(buildICS(event({}), [])).not.toContain('LOCATION:')
+    expect(buildICS(event({ location: '' }), [])).not.toContain('LOCATION:')
+  })
+
   it('escapes commas and semicolons in the event name and lists the menu', () => {
     const ics = buildICS(event({ name: 'Smith, Jones; Reunion' }), [
       signup({ id: '1', name: 'Joe', dish: 'Salmon' }),

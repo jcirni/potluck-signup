@@ -78,6 +78,7 @@ export function buildICS(event: PotluckEvent, signups: Signup[]): string {
     `DTSTART;VALUE=DATE:${start}`,
     `DTEND;VALUE=DATE:${nextDay(event.date)}`,
     `SUMMARY:${icsEscape(event.name)}`,
+    ...(event.location ? [`LOCATION:${icsEscape(event.location)}`] : []),
     `DESCRIPTION:${icsEscape(description)}`,
     'END:VEVENT',
     'END:VCALENDAR',

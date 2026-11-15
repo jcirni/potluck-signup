@@ -112,6 +112,23 @@ describe('cleanEvent', () => {
     expect(cleanEvent(rawEvent({ name: 'n'.repeat(120) }))).not.toBeNull()
   })
 
+  it('keeps location and details, and leaves them unset when absent or blank', () => {
+    const e = cleanEvent(rawEvent({ location: '820 Lenora St', details: 'Buzz unit 402.\nBring a side!' }))
+    expect(e?.location).toBe('820 Lenora St')
+    expect(e?.details).toBe('Buzz unit 402.\nBring a side!')
+    expect(cleanEvent(rawEvent())?.location).toBeUndefined()
+    expect(cleanEvent(rawEvent())?.details).toBeUndefined()
+    expect(cleanEvent(rawEvent({ location: '', details: '' }))?.location).toBeUndefined()
+    expect(cleanEvent(rawEvent({ location: 42 }))?.details).toBeUndefined()
+  })
+
+  it('rejects location and details longer than the database limits', () => {
+    expect(cleanEvent(rawEvent({ location: 'l'.repeat(201) }))).toBeNull()
+    expect(cleanEvent(rawEvent({ location: 'l'.repeat(200) }))).not.toBeNull()
+    expect(cleanEvent(rawEvent({ details: 'd'.repeat(2001) }))).toBeNull()
+    expect(cleanEvent(rawEvent({ details: 'd'.repeat(2000) }))).not.toBeNull()
+  })
+
   it('folds a stored Veggies target into Sides for events saved before the merge', () => {
     const legacy = { Appetizers: 2, Mains: 3, Veggies: 2, Sides: 3, Desserts: 2, Drinks: 3, Supplies: 4 }
     const e = cleanEvent(rawEvent({ targets: legacy }))

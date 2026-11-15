@@ -8,6 +8,8 @@ create table if not exists public.events (
   name text not null check (char_length(name) between 1 and 120),
   date date,
   headcount integer not null default 0 check (headcount >= 0),
+  location text check (char_length(location) <= 200),
+  details text check (char_length(details) <= 2000),
   targets jsonb not null default '{"Appetizers":2,"Mains":3,"Veggies":2,"Sides":3,"Desserts":2,"Drinks":3,"Supplies":4}'::jsonb,
   dietary_needs jsonb not null default '{"vegetarian":0,"vegan":0,"glutenFree":0,"noPork":0}'::jsonb,
   accent text not null default 'brass' check (accent in ('brass', 'burgundy', 'forest', 'slate')),
@@ -18,6 +20,8 @@ create table if not exists public.events (
 -- Column guards so re-running on an earlier draft adds missing columns instead of failing.
 alter table public.events add column if not exists dietary_needs jsonb not null default '{"vegetarian":0,"vegan":0,"glutenFree":0,"noPork":0}'::jsonb;
 alter table public.events add column if not exists accent text not null default 'brass' check (accent in ('brass', 'burgundy', 'forest', 'slate'));
+alter table public.events add column if not exists location text check (char_length(location) <= 200);
+alter table public.events add column if not exists details text check (char_length(details) <= 2000);
 
 create table if not exists public.signups (
   id text primary key,
@@ -98,6 +102,41 @@ $$;
 drop trigger if exists rsvp_cap on public.rsvps;
 create trigger rsvp_cap before insert on public.rsvps
   for each row execute function public.check_rsvp_cap();
+
+-- Abuse armor, part 3: at most 1000 dish suggestions overall.
+create or replace function public.check_suggestion_cap()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (select count(*) from public.dish_suggestions) >= 1000 then
+    raise exception 'Suggestion box is full (1000 suggestions).';
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists suggestion_cap on public.dish_suggestions;
+create trigger suggestion_cap before insert on public.dish_suggestions
+  for each row execute function public.check_suggestion_cap();
+
+-- Abuse armor, part 4: at most 200 events created per UTC day.
+create or replace function public.check_event_daily_cap()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (select count(*) from public.events
+      where created_at >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc')) >= 200 then
+    raise exception 'Too many events created today (200 per day).';
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists event_daily_cap on public.events;
+create trigger event_daily_cap before insert on public.events
+  for each row execute function public.check_event_daily_cap();
 
 alter table public.events enable row level security;
 alter table public.signups enable row level security;
@@ -262,7 +301,9 @@ begin
     headcount = coalesce((p_patch ->> 'headcount')::integer, headcount),
     targets = coalesce(p_patch -> 'targets', targets),
     dietary_needs = coalesce(p_patch -> 'dietaryNeeds', dietary_needs),
-    accent = coalesce(p_patch ->> 'accent', accent)
+    accent = coalesce(p_patch ->> 'accent', accent),
+    location = coalesce((p_patch ->> 'location')::text, location),
+    details = coalesce((p_patch ->> 'details')::text, details)
   where id = p_event_id;
 end;
 $$;

@@ -177,13 +177,17 @@ export function cleanEvent(raw: unknown): PotluckEvent | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
   const targets = cleanTargets(r.targets)
-  // Length limit mirrors the events table check in backend/supabase.sql.
+  // Length limits mirror the events table checks in backend/supabase.sql.
   if (typeof r.id !== 'string' || typeof r.name !== 'string' || r.name.length < 1 || r.name.length > 120 || !targets) return null
+  if (typeof r.location === 'string' && r.location.length > 200) return null
+  if (typeof r.details === 'string' && r.details.length > 2000) return null
   return {
     id: r.id,
     name: r.name,
     date: typeof r.date === 'string' ? r.date : '',
     headcount: typeof r.headcount === 'number' ? r.headcount : 0,
+    location: typeof r.location === 'string' && r.location !== '' ? r.location : undefined,
+    details: typeof r.details === 'string' && r.details !== '' ? r.details : undefined,
     targets,
     dietaryNeeds: cleanDietaryNeeds(r.dietaryNeeds),
     // Lenient like dietaryNeeds: events stored before accents existed fall back to brass.
@@ -559,6 +563,8 @@ export class SupabaseStore implements SignupStore {
       name: event.name,
       date: event.date || null,
       headcount: event.headcount,
+      location: event.location ?? null,
+      details: event.details ?? null,
       targets: event.targets,
       dietary_needs: event.dietaryNeeds,
       accent: event.accent,
@@ -589,6 +595,8 @@ export class SupabaseStore implements SignupStore {
       name: r.name,
       date: r.date,
       headcount: r.headcount,
+      location: r.location,
+      details: r.details,
       targets: r.targets,
       dietaryNeeds: r.dietary_needs,
       accent: r.accent,
@@ -622,7 +630,7 @@ export class SupabaseStore implements SignupStore {
   async getEvent(id: string): Promise<PotluckEvent | null> {
     const { data, error } = await this.client()
       .from('events')
-      .select('id,name,date,headcount,targets,dietary_needs,accent,created_at')
+      .select('id,name,date,headcount,location,details,targets,dietary_needs,accent,created_at')
       .eq('id', id)
       .maybeSingle()
     if (error) throw new Error(`Supabase request failed: ${error.message}`)
