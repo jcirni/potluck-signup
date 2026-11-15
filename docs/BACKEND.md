@@ -46,18 +46,38 @@ In Settings, API Keys you will find:
 - **anon public key** (legacy view) or the newer publishable key
 
 Both are public by design and safe to ship in client code and commit
-to the repo. The app ships with the potluck-signup project's URL and
-anon key as built-in defaults (`DEFAULT_SUPABASE_URL` and
-`DEFAULT_SUPABASE_ANON_KEY` in `src/lib/storage.ts`); Settings in the
-app can override them to point at a different project.
+to the repo. The app reads them from build-time variables
+(`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`), falling back to
+the potluck-signup project's values in `src/lib/storage.ts`. The
+deploy workflow sets them from repository variables, so a staging
+repo points at its own project with no code change. There is no
+in-app setting for them in production.
 
 Never commit or share the **service_role** key or the database
 password. The app does not use them, and the service_role key bypasses
 row-level security entirely.
 
 Note: Supabase plans to retire legacy anon keys in early 2027 in
-favor of publishable keys. Swapping is a one-line change to the
-default key above; the publishable key works with the same client.
+favor of publishable keys. Swapping means updating the repository
+variable (or the fallback value); the publishable key works with the
+same client.
+
+## Environments
+
+- **Production** is Supabase-only. The shipped build always talks to
+  the configured project; there is no storage-mode switcher and no
+  way for a device to save signups to itself.
+- **Development** (`npm run dev`, or a build with
+  `VITE_ENABLE_DEV_STORES=1`) additionally enables a browser-only
+  local store and the "Where signups live" switcher in Manage event,
+  for trying the app and seeding sample data without touching a real
+  project. Nothing about it reaches the production build's behavior.
+- **Staging** is a second Supabase project (the free tier allows two)
+  with the same `backend/supabase.sql` schema, plus a copy of this
+  repo whose deploy workflow repository variables
+  (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) point at it. Dish
+  suggestions use the same build-time config, so staging tests never
+  write into the production suggestions table.
 
 ## Security model
 
@@ -103,11 +123,9 @@ SQL Editor. The script is written to re-run safely:
 tables and columns use IF NOT EXISTS guards, and policies, triggers,
 and functions are dropped and recreated or replaced.
 
-## Alternative: Google Sheet (Apps Script)
+## Removed backends
 
-`backend/Code.gs` is a single-event fallback: a web app backed by a
-Google Sheet, deployed from the Sheet's Apps Script editor
-(instructions at the top of the file). Paste its `/exec` URL into the
-app's Settings and choose the Apps Script store mode. It suits one
-private event where the Sheet stays the admin view; it cannot host
-events for the public, which is what Supabase is for.
+Earlier builds also had a URL-snapshot store (the list encoded in
+the link) and a Google Sheet store via Apps Script. Both were
+removed when production went Supabase-only; the local store remains
+as a dev-only tool (see Environments above).

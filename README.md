@@ -52,20 +52,18 @@ installable as a PWA.
   (`catalog.ts`), shopping lists (`shopping.ts`), calendar export
   (`ics.ts`), and storage (`storage.ts`). React is only the shell
   (`src/App.tsx`), which is what makes a future native wrapper cheap.
-- **One storage interface.** All backends sit behind `SignupStore`
+- **One storage interface.** Backends sit behind `SignupStore`
   (`list / add / update / remove` plus event methods) in
-  `src/lib/storage.ts`. Switching backends is a Settings change, not
-  a rebuild:
-  - **Supabase (default):** the public backend. Anyone can create an
-    event; data lives in one Postgres project. Setup:
-    [docs/BACKEND.md](docs/BACKEND.md).
-  - **This browser only:** localStorage. Good for trying the app.
-  - **Share link (snapshot):** the whole list as Base64URL JSON in
-    the `#s=` URL hash. Fine as a snapshot or export; it forks when
-    two people sign up from the same link, so it is not the live
-    system.
-  - **Google Sheet (Apps Script):** `backend/Code.gs`, a single-event
-    fallback where the Sheet stays the admin view.
+  `src/lib/storage.ts`. Production ships exactly one:
+  - **Supabase:** the public backend. Anyone can create an event;
+    data lives in one Postgres project, chosen at build time by
+    repository variables (a staging repo points at a staging
+    project). Setup: [docs/BACKEND.md](docs/BACKEND.md).
+  - **This browser only (dev only):** a localStorage store for
+    development and tests, enabled by `npm run dev` or
+    `VITE_ENABLE_DEV_STORES=1`. Production builds ignore it
+    entirely: no mode switcher, no local saving. (Earlier URL
+    snapshot and Google Sheet stores were removed.)
 - **Static catalog.** The dish catalog is a JSON file in
   `public/data/`, not a database table. Supabase stores only events,
   signups, and RSVPs; a signup references a catalog dish id or is
@@ -106,9 +104,10 @@ file and will reject a malformed entry. Field notes:
 
 Supabase setup from scratch, the security model (token hashes only,
 row-level security with select and insert only, edits through
-token-checked database functions), and the Apps Script alternative
-are documented in [docs/BACKEND.md](docs/BACKEND.md). The schema
-itself is `backend/supabase.sql`.
+token-checked database functions), and the production / staging /
+dev environment split are documented in
+[docs/BACKEND.md](docs/BACKEND.md). The schema itself is
+`backend/supabase.sql`.
 
 Two things worth knowing here:
 
@@ -165,10 +164,11 @@ run by hand from the Actions tab.
 
 ## Sample data
 
-The demo event ships the four rows from the 2024 Friendsgiving sheet:
-Howard's Taiwanese stir fry rice noodles (Mains), Joe's salmon
-(Mains), Valerie's stuffing (Sides), Gardner's seltzers (Drinks).
-They are marked as samples and anyone can clear them.
+In the dev local store, the demo event seeds the four rows from the
+2024 Friendsgiving sheet: Howard's Taiwanese stir fry rice noodles
+(Mains), Joe's salmon (Mains), Valerie's stuffing (Sides), Gardner's
+seltzers (Drinks). They are marked as samples and can be cleared from
+Manage event. Production never seeds them.
 
 ## License
 
