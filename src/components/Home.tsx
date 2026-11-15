@@ -11,13 +11,7 @@ interface HomeProps {
   onInstall: () => void
 }
 
-const STEPS = [
-  'Create an event and share the link.',
-  'Guests sign up with a dish, no account needed.',
-  'The menu and the gaps update live.',
-]
-
-/** The entry page at the bare URL: what this is, create, your events on this device, open by link, and the demo. */
+/** The entry page at the bare URL: create an event, or find one by link or from this device. */
 export default function Home({ store, mode, showInstallButton, installHint, onInstall }: HomeProps) {
   const [yourEvents, setYourEvents] = useState<YourEvent[]>([])
   const [openValue, setOpenValue] = useState('')
@@ -55,47 +49,13 @@ export default function Home({ store, mode, showInstallButton, installHint, onIn
       </header>
 
       <div className="home-wrap">
-        <ol className="steps panel">
-          {STEPS.map((step, i) => (
-            <li key={step}>
-              <span className="step-num" aria-hidden="true">
-                {i + 1}
-              </span>
-              <span>{step}</span>
-            </li>
-          ))}
-        </ol>
-
         <section className="panel">
           <h2>Start a potluck</h2>
           <CreateEvent store={store} mode={mode} onCreated={() => void loadYours()} />
         </section>
 
         <section className="panel">
-          <h2>Your events on this device</h2>
-          {yourEvents.length === 0 ? (
-            <p className="hint">Events you create will show up here on this device.</p>
-          ) : (
-            <ul className="your-events">
-              {yourEvents.map((ev) => (
-                <li key={ev.slug}>
-                  <span className="your-event-id">
-                    <a href={`?event=${encodeURIComponent(ev.slug)}`}>{ev.name ?? ev.slug}</a>
-                    {ev.name && <span className="hint">{ev.slug}</span>}
-                  </span>
-                  {ev.token && (
-                    <a className="your-event-host" href={`?event=${encodeURIComponent(ev.slug)}&admin=${encodeURIComponent(ev.token)}`}>
-                      Open as host
-                    </a>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="panel">
-          <h2>Open an event</h2>
+          <h2>Find an event</h2>
           <p className="hint">Were you sent a link? Paste it here, or just type the event name from the end of it.</p>
           <form className="open-form" onSubmit={openEvent}>
             <input
@@ -117,16 +77,26 @@ export default function Home({ store, mode, showInstallButton, installHint, onIn
               {openError}
             </p>
           )}
-        </section>
-
-        <section className="panel">
-          <h2>See a live demo</h2>
-          <p className="hint">A sample event anyone can open, with a menu already filling up.</p>
-          <div className="row">
-            <a className="button-link" href="?event=friendsgiving">
-              Open the demo event
-            </a>
-          </div>
+          <h3>Events you host on this device</h3>
+          {yourEvents.length === 0 ? (
+            <p className="hint">Events you create will show up here on this device.</p>
+          ) : (
+            <ul className="your-events">
+              {yourEvents.map((ev) => (
+                <li key={ev.slug}>
+                  <span className="your-event-id">
+                    <a href={`?event=${encodeURIComponent(ev.slug)}`}>{ev.name ?? ev.slug}</a>
+                    {ev.name && <span className="hint">{ev.slug}</span>}
+                  </span>
+                  {ev.token && (
+                    <a className="your-event-host" href={`?event=${encodeURIComponent(ev.slug)}&admin=${encodeURIComponent(ev.token)}`}>
+                      Open as host
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 
