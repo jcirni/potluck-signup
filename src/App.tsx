@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import CreateEvent from './components/CreateEvent.tsx'
+import Home from './components/Home.tsx'
 import { cuisineColor, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
-import { buildNewEvent, createUniqueEvent, eventLinks, randomSuffix, uniqueSlug, type CreatedEvent } from './lib/eventCreate.ts'
 import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
 import { displayEventName } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
@@ -79,6 +80,11 @@ function gapText(g: CourseGap): string {
 }
 
 export default function App() {
+  // The bare URL is the home page; an event page needs ?event= or a snapshot hash (#s=).
+  const [isHome] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return !new URLSearchParams(window.location.search).get('event') && !/#s=/.test(window.location.hash)
+  })
   const [mode, setMode] = useState<StoreMode>(() => {
     const saved = localStorage.getItem(MODE_KEY)
     return saved === 'url' || saved === 'apps-script' || saved === 'supabase' ? saved : 'local'
@@ -97,11 +103,6 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({ name: '', date: '', headcount: '' })
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState('')
-  const [created, setCreated] = useState<CreatedEvent | null>(null)
-  const [copiedLink, setCopiedLink] = useState('')
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [standalone] = useState(isStandalone)
   const [justInstalled, setJustInstalled] = useState(false)
@@ -122,7 +123,6 @@ export default function App() {
   const [recipeError, setRecipeError] = useState('')
   const [recipeThanks, setRecipeThanks] = useState(false)
   const [recipeHoneypot, setRecipeHoneypot] = useState('')
-  const [createHoneypot, setCreateHoneypot] = useState('')
   const [detailsForm, setDetailsForm] = useState({ location: '', details: '' })
   const [detailsSaved, setDetailsSaved] = useState(false)
   const [detailsError, setDetailsError] = useState('')
@@ -209,6 +209,11 @@ export default function App() {
     setConfirmRemoveId(null)
     setConfirmClearSamples(false)
     localStorage.setItem(MODE_KEY, mode)
+    // The home page binds no event: no signup load, no demo seeding, no event record fetch.
+    if (isHome) {
+      setLoaded(true)
+      return
+    }
     setLoaded(false)
     // Seed samples only for offline modes; a central backend starts empty.
     void refresh(s, mode === 'local' || mode === 'url')
@@ -227,7 +232,7 @@ export default function App() {
         }
       })
       .catch(() => setEvent(null))
-  }, [mode, refresh])
+  }, [mode, refresh, isHome])
 
   useEffect(() => {
     // The catalog powers the dish picker; without it the form still works as free text.
@@ -480,49 +485,7 @@ export default function App() {
 
   function openCreate() {
     setManageOpen(false)
-    setCreated(null)
-    setCreateError('')
-    setCopiedLink('')
     setCreateOpen(true)
-  }
-
-  async function submitCreate(e: React.FormEvent) {
-    e.preventDefault()
-    // A filled honeypot means a bot: show the success panel, create nothing.
-    if (isSpamSubmission(createHoneypot)) {
-      const name = createForm.name.trim() || 'Your potluck'
-      setCreated({
-        event: buildNewEvent({ name, date: createForm.date, headcount: 0 }, uniqueSlug(name, randomSuffix())),
-        adminToken: crypto.randomUUID(),
-      })
-      return
-    }
-    const name = createForm.name.trim()
-    if (!name) {
-      setCreateError('Give your potluck a name first.')
-      return
-    }
-    setCreateError('')
-    setCreating(true)
-    try {
-      const result = await createUniqueEvent(store, {
-        name,
-        date: createForm.date,
-        headcount: Math.max(0, Number(createForm.headcount) || 0),
-      })
-      setCreated(result)
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Could not create the event.')
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  function copyCreatedLink(which: 'guest' | 'admin', url: string) {
-    void navigator.clipboard.writeText(url).then(
-      () => setCopiedLink(which),
-      () => setCreateError('Could not copy. Select the link text and copy it by hand.'),
-    )
   }
 
   // Footer install: captured prompt, iOS Share hint, or the browser-menu hint.
@@ -551,6 +514,20 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  if (isHome) {
+    return (
+      <div className="page" data-accent={accent}>
+        <Home
+          store={store}
+          mode={mode}
+          showInstallButton={showInstallButton}
+          installHint={installHint}
+          onInstall={() => void installFromFooter()}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="page" data-accent={accent}>
       <header className="hero">
@@ -565,6 +542,12 @@ export default function App() {
           <span />
           <span />
         </button>
+        <div className="hero-top">
+          <a className="home-link" href="./">
+            <img src="icons/icon.svg" alt="" width={20} height={20} />
+            Potluck Signup
+          </a>
+        </div>
         <p className="hero-eyebrow">Potluck signup</p>
         <h1 className="hero-name">{displayEventName(event, eventName)}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
@@ -1247,123 +1230,9 @@ export default function App() {
                 ×
               </button>
             </div>
-
-            {created ? (
-              <section className="drawer-section">
-                <p className="good">
-                  <strong>{created.event.name}</strong> is ready.
-                </p>
-                {(() => {
-                  // Snapshot mode carries the event in the link itself, so both links are the current URL.
-                  const links =
-                    mode === 'url'
-                      ? { guest: window.location.href, admin: window.location.href }
-                      : eventLinks(`${window.location.origin}${window.location.pathname}`, created.event.id, created.adminToken)
-                  return (
-                    <>
-                      <h3>Share link for guests</h3>
-                      <p className="share-link">
-                        <code>{links.guest}</code>
-                      </p>
-                      <div className="row">
-                        <button type="button" onClick={() => copyCreatedLink('guest', links.guest)}>
-                          {copiedLink === 'guest' ? 'Copied' : 'Copy share link'}
-                        </button>
-                      </div>
-                      <h3>Your admin link</h3>
-                      <p className="share-link">
-                        <code>{links.admin}</code>
-                      </p>
-                      <div className="row">
-                        <button type="button" onClick={() => copyCreatedLink('admin', links.admin)}>
-                          {copiedLink === 'admin' ? 'Copied' : 'Copy admin link'}
-                        </button>
-                      </div>
-                      <p className="hint">
-                        The admin link is your host key: it unlocks event settings, so keep it private and share only
-                        the guest link.
-                      </p>
-                      <div className="row">
-                        <button
-                          type="button"
-                          className="primary"
-                          onClick={() => {
-                            window.location.href = links.admin
-                          }}
-                        >
-                          Go to my event
-                        </button>
-                        <button type="button" onClick={() => setCreateOpen(false)}>
-                          Done
-                        </button>
-                      </div>
-                    </>
-                  )
-                })()}
-              </section>
-            ) : (
-              <form onSubmit={submitCreate}>
-                <section className="drawer-section">
-                  <div className="settings">
-                    <label>
-                      Event name
-                      <input
-                        value={createForm.name}
-                        onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                        maxLength={120}
-                        placeholder="e.g. Friendsgiving 2026"
-                        required
-                      />
-                    </label>
-                    <label>
-                      Date (optional)
-                      <input
-                        type="date"
-                        value={createForm.date}
-                        onChange={(e) => setCreateForm({ ...createForm, date: e.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Rough headcount (optional)
-                      <input
-                        type="number"
-                        min={0}
-                        value={createForm.headcount}
-                        onChange={(e) => setCreateForm({ ...createForm, headcount: e.target.value })}
-                      />
-                    </label>
-                    <div className="hp-field" aria-hidden="true">
-                      <label>
-                        Website
-                        <input
-                          name="website"
-                          tabIndex={-1}
-                          autoComplete="off"
-                          value={createHoneypot}
-                          onChange={(e) => setCreateHoneypot(e.target.value)}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                  {createError && (
-                    <p className="notice error" role="alert">
-                      {createError}
-                    </p>
-                  )}
-                  {mode === 'apps-script' && (
-                    <p className="hint">
-                      Shared events need the Supabase storage mode; a Google Sheet hosts one event only. Switch it
-                      under Manage event, then create yours.
-                    </p>
-                  )}
-                  <div className="row">
-                    <button type="submit" className="primary" disabled={creating || mode === 'apps-script'}>
-                      {creating ? 'Creating…' : 'Create event'}
-                    </button>
-                  </div>
-                </section>
-              </form>
-            )}
+            <section className="drawer-section">
+              <CreateEvent store={store} mode={mode} onClose={() => setCreateOpen(false)} />
+            </section>
           </div>
         </>
       )}
