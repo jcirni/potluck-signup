@@ -91,7 +91,7 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .drawer-close:hover { color: var(--ink); }
 .drawer-section { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
 .drawer-section h3 { margin: 0 0 8px; }
-.drawer-section .row button { background: var(--panel-2); }
+.drawer-section .row button:not(.primary) { background: var(--panel-2); }
 .share-link { word-break: break-all; font-size: 0.85em; margin: 0; }
 @keyframes drawer-in-x { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes drawer-in-y { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
