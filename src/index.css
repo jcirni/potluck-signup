@@ -98,6 +98,12 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .hero-eyebrow { margin: 0; font-size: 0.78em; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink); }
 .hero-name { margin: 8px 0 4px; font-size: 3em; font-weight: 800; line-height: 1.05; }
 .hero-date { margin: 0; font-size: 1.05em; font-weight: 500; color: var(--ink-dim); }
+.hero-location { margin: 3px 0 0; font-size: 0.98em; font-weight: 600; color: var(--ink-dim); }
+.details-band { width: min(1068px, calc(100% - 32px)); margin: 14px auto 0; }
+.details-card { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 18px; padding: 16px 18px; }
+.details-text { margin: 0; white-space: pre-line; line-height: 1.55; }
+.hp-field { position: absolute; left: -9999px; top: 0; width: 1px; height: 1px; overflow: hidden; }
+.settings textarea { width: 100%; resize: vertical; }
 .stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; max-width: 760px; margin: 20px auto 0; border-top: 1px solid var(--line-hero); border-bottom: 1px solid var(--line-hero); }
 .stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 10px; min-width: 0; text-align: center; }
 .stat + .stat { border-left: 1px solid var(--line-hero); }

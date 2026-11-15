@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cuisineColor, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
-import { createUniqueEvent, eventLinks, type CreatedEvent } from './lib/eventCreate.ts'
+import { buildNewEvent, createUniqueEvent, eventLinks, randomSuffix, uniqueSlug, type CreatedEvent } from './lib/eventCreate.ts'
 import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
 import { displayEventName } from './lib/eventName.ts'
+import { isSpamSubmission } from './lib/honeypot.ts'
 import { buildICS, icsFilename, shareOrDownloadIcs } from './lib/ics.ts'
 import { installAction, isIosDevice, isStandalone, shouldShowInstallButton } from './lib/install.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
@@ -120,6 +121,11 @@ export default function App() {
   const [recipeForm, setRecipeForm] = useState({ ingredients: '', steps: '', cuisine: '', servings: '' })
   const [recipeError, setRecipeError] = useState('')
   const [recipeThanks, setRecipeThanks] = useState(false)
+  const [recipeHoneypot, setRecipeHoneypot] = useState('')
+  const [createHoneypot, setCreateHoneypot] = useState('')
+  const [detailsForm, setDetailsForm] = useState({ location: '', details: '' })
+  const [detailsSaved, setDetailsSaved] = useState(false)
+  const [detailsError, setDetailsError] = useState('')
   const [formInView, setFormInView] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const formSectionRef = useRef<HTMLElement>(null)
@@ -206,7 +212,7 @@ export default function App() {
     setLoaded(false)
     // Seed samples only for offline modes; a central backend starts empty.
     void refresh(s, mode === 'local' || mode === 'url')
-    // The event record carries the date, RSVP headcount, and accent; modes without one leave it null.
+    // The event record carries the date, accent, and host details; modes without one leave it null.
     setEvent(null)
     void s
       .getEvent(s.eventId)
@@ -215,6 +221,9 @@ export default function App() {
         if (ev) {
           setAccent(ev.accent)
           setEventName(ev.name)
+          setDetailsForm({ location: ev.location ?? '', details: ev.details ?? '' })
+          setDetailsSaved(false)
+          setDetailsError('')
         }
       })
       .catch(() => setEvent(null))
@@ -327,6 +336,25 @@ export default function App() {
     }
   }
 
+  /** Save location + details through the same host path as the accent. */
+  async function saveEventDetails() {
+    const location = detailsForm.location.trim()
+    const details = detailsForm.details.trim()
+    setDetailsError('')
+    try {
+      if (mode === 'supabase') {
+        const token = eventAdminToken(store.eventId)
+        if (token) await store.updateEvent(store.eventId, { location, details }, await sha256Hex(token))
+      } else if (event) {
+        await store.updateEvent(store.eventId, { location, details })
+      }
+      setEvent((prev) => (prev ? { ...prev, location: location || undefined, details: details || undefined } : prev))
+      setDetailsSaved(true)
+    } catch (err) {
+      setDetailsError(err instanceof Error ? err.message : 'Could not save the event details.')
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     const name = form.name.trim()
@@ -391,6 +419,11 @@ export default function App() {
   async function submitRecipe(e: React.FormEvent) {
     e.preventDefault()
     if (!recipePrompt) return
+    // A filled honeypot means a bot: show the thanks, send nothing.
+    if (isSpamSubmission(recipeHoneypot)) {
+      setRecipeThanks(true)
+      return
+    }
     if (!recipeForm.ingredients.trim()) {
       setRecipeError('Add at least one ingredient so we can work out the nutrition.')
       return
@@ -455,6 +488,15 @@ export default function App() {
 
   async function submitCreate(e: React.FormEvent) {
     e.preventDefault()
+    // A filled honeypot means a bot: show the success panel, create nothing.
+    if (isSpamSubmission(createHoneypot)) {
+      const name = createForm.name.trim() || 'Your potluck'
+      setCreated({
+        event: buildNewEvent({ name, date: createForm.date, headcount: 0 }, uniqueSlug(name, randomSuffix())),
+        adminToken: crypto.randomUUID(),
+      })
+      return
+    }
     const name = createForm.name.trim()
     if (!name) {
       setCreateError('Give your potluck a name first.')
@@ -526,7 +568,8 @@ export default function App() {
         <p className="hero-eyebrow">Potluck signup</p>
         <h1 className="hero-name">{displayEventName(event, eventName)}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
-        <div className="stats" data-count={event !== null && event.headcount > 0 ? 3 : 2}>
+        {event?.location && <p className="hero-location">{event.location}</p>}
+        <div className="stats" data-count={2}>
           <div className="stat">
             <span className="stat-num">{signups.length}</span>
             <span className="stat-label">{signups.length === 1 ? 'person' : 'people'} signed up</span>
@@ -535,12 +578,6 @@ export default function App() {
             <span className="stat-num">{signups.length}</span>
             <span className="stat-label">dishes on the menu</span>
           </div>
-          {event !== null && event.headcount > 0 && (
-            <div className="stat">
-              <span className="stat-num">{event.headcount}</span>
-              <span className="stat-label">RSVP headcount</span>
-            </div>
-          )}
         </div>
         <nav className="hero-nav" aria-label="Jump to a section">
           <button type="button" onClick={() => scrollToSection(menuSectionRef)}>
@@ -564,6 +601,13 @@ export default function App() {
           )}
         </div>
       </header>
+      {event?.details && (
+        <div className="details-band">
+          <section className="details-card">
+            <p className="details-text">{event.details}</p>
+          </section>
+        </div>
+      )}
       <div className="menu-band">
       <section id="menu" ref={menuSectionRef}>
         <h2>The menu so far</h2>
@@ -882,6 +926,18 @@ export default function App() {
                     </div>
                   ) : (
                     <form onSubmit={submitRecipe} className="recipe-form">
+                      <div className="hp-field" aria-hidden="true">
+                        <label>
+                          Website
+                          <input
+                            name="website"
+                            tabIndex={-1}
+                            autoComplete="off"
+                            value={recipeHoneypot}
+                            onChange={(e) => setRecipeHoneypot(e.target.value)}
+                          />
+                        </label>
+                      </div>
                       <label>
                         Ingredients
                         <textarea
@@ -995,6 +1051,50 @@ export default function App() {
                       title={ACCENT_LABELS[a]}
                     />
                   ))}
+                </div>
+              </section>
+            )}
+
+            {canEditAccent && (
+              <section className="drawer-section">
+                <h3>Event details</h3>
+                <div className="settings">
+                  <label>
+                    Location
+                    <input
+                      value={detailsForm.location}
+                      maxLength={200}
+                      placeholder="e.g. Stratus Apartments, 820 Lenora St"
+                      onChange={(e) => {
+                        setDetailsForm({ ...detailsForm, location: e.target.value })
+                        setDetailsSaved(false)
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Details for guests
+                    <textarea
+                      rows={5}
+                      maxLength={2000}
+                      placeholder="Directions, parking, what to expect…"
+                      value={detailsForm.details}
+                      onChange={(e) => {
+                        setDetailsForm({ ...detailsForm, details: e.target.value })
+                        setDetailsSaved(false)
+                      }}
+                    />
+                  </label>
+                </div>
+                {detailsError && (
+                  <p className="notice error" role="alert">
+                    {detailsError}
+                  </p>
+                )}
+                <div className="row">
+                  <button type="button" className="primary" onClick={() => void saveEventDetails()}>
+                    Save details
+                  </button>
+                  {detailsSaved && <span className="hint">Saved.</span>}
                 </div>
               </section>
             )}
@@ -1232,6 +1332,18 @@ export default function App() {
                         onChange={(e) => setCreateForm({ ...createForm, headcount: e.target.value })}
                       />
                     </label>
+                    <div className="hp-field" aria-hidden="true">
+                      <label>
+                        Website
+                        <input
+                          name="website"
+                          tabIndex={-1}
+                          autoComplete="off"
+                          value={createHoneypot}
+                          onChange={(e) => setCreateHoneypot(e.target.value)}
+                        />
+                      </label>
+                    </div>
                   </div>
                   {createError && (
                     <p className="notice error" role="alert">
