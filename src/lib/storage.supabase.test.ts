@@ -235,6 +235,25 @@ describe('SupabaseStore guest edit token across reloads', () => {
     expect((await store.getEvent('friendsgiving'))?.accent).toBe('slate')
   })
 
+  it('round-trips a created event name other than the demo name', async () => {
+    const store = new SupabaseStore()
+    const event: PotluckEvent = {
+      id: 'e2e-test-potluck-ylh5z',
+      name: 'E2E Test Potluck',
+      date: '2026-12-24',
+      headcount: 10,
+      targets: { ...DEFAULT_TARGETS },
+      dietaryNeeds: { ...EMPTY_DIETARY_NEEDS },
+      accent: 'brass',
+      createdAt: '2026-11-14T00:00:00.000Z',
+    }
+    await store.createEvent(event, 'admin-hash')
+    const loaded = await store.getEvent('e2e-test-potluck-ylh5z')
+    expect(loaded?.name).toBe('E2E Test Potluck')
+    expect(loaded?.date).toBe('2026-12-24')
+    expect(loaded?.headcount).toBe(10)
+  })
+
   it('the auto-created event starts with the brass accent', async () => {
     await new SupabaseStore().add(makeSignup())
     expect(db.events.get('friendsgiving')?.accent).toBe('brass')

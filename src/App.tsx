@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cuisineColor, loadCatalog, type Dish } from './lib/catalog.ts'
 import { createUniqueEvent, eventLinks, type CreatedEvent } from './lib/eventCreate.ts'
 import { allergyRollup, computeGaps, findDuplicates, neededCourses, ovenCount, type CourseGap } from './lib/gaps.ts'
-import { buildICS, icsFilename } from './lib/ics.ts'
-import { isIosDevice, isStandalone } from './lib/install.ts'
+import { displayEventName } from './lib/eventName.ts'
+import { buildICS, icsFilename, shareOrDownloadIcs } from './lib/ics.ts'
+import { installAction, isIosDevice, isStandalone, shouldShowInstallButton } from './lib/install.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
 import {
   APPS_SCRIPT_URL_STORAGE_KEY,
@@ -102,7 +103,7 @@ export default function App() {
   const [standalone] = useState(isStandalone)
   const [justInstalled, setJustInstalled] = useState(false)
   const [iosDevice] = useState(isIosDevice)
-  const [showIosHint, setShowIosHint] = useState(false)
+  const [installHint, setInstallHint] = useState<'ios' | 'menu' | null>(null)
   const [event, setEvent] = useState<PotluckEvent | null>(null)
   const [accent, setAccent] = useState<Accent>(() => {
     const saved = localStorage.getItem(ACCENT_KEY)
@@ -201,7 +202,10 @@ export default function App() {
       .getEvent(s.eventId)
       .then((ev) => {
         setEvent(ev)
-        if (ev) setAccent(ev.accent)
+        if (ev) {
+          setAccent(ev.accent)
+          setEventName(ev.name)
+        }
       })
       .catch(() => setEvent(null))
   }, [mode, refresh])
@@ -227,7 +231,7 @@ export default function App() {
   const hasSample = signups.some((s) => s.sample)
   // '' until the event has a date; that is what gates the calendar button.
   const icsText = useMemo(() => (event ? buildICS(event, signups) : ''), [event, signups])
-  const showInstallButton = !standalone && !justInstalled && (installPrompt !== null || iosDevice)
+  const showInstallButton = shouldShowInstallButton(standalone, justInstalled)
   const pickedDish = useMemo(() => dishes.find((d) => d.id === pickedDishId) ?? null, [dishes, pickedDishId])
   const filteredDishes = useMemo(() => {
     const q = dishFilter.trim().toLowerCase()
@@ -372,24 +376,10 @@ export default function App() {
     )
   }
 
-  /** Share the .ics through the share sheet when files are supported; download it otherwise. */
+  /** Share the .ics when possible; any share failure except a dismissal downloads it instead. */
   async function addToCalendar() {
     if (!event || !icsText) return
-    const file = new File([icsText], icsFilename(event), { type: 'text/calendar' })
-    if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: event.name })
-      } catch {
-        // The guest dismissed the share sheet; nothing to do.
-      }
-      return
-    }
-    const url = URL.createObjectURL(new Blob([icsText], { type: 'text/calendar' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = icsFilename(event)
-    a.click()
-    URL.revokeObjectURL(url)
+    await shareOrDownloadIcs({ text: icsText, filename: icsFilename(event), title: event.name })
   }
 
   function openCreate() {
@@ -430,13 +420,15 @@ export default function App() {
     )
   }
 
-  // Footer install: the captured prompt when there is one, the iOS hint otherwise.
+  // Footer install: captured prompt, iOS Share hint, or the browser-menu hint.
   async function installFromFooter() {
-    if (installPrompt) {
+    const action = installAction(installPrompt !== null, iosDevice)
+    if (action === 'prompt') {
       await installApp()
       return
     }
-    if (iosDevice) setShowIosHint((v) => !v)
+    const hint = action === 'ios-hint' ? 'ios' : 'menu'
+    setInstallHint((cur) => (cur === hint ? null : hint))
   }
 
   function startEdit(s: Signup) {
@@ -469,7 +461,7 @@ export default function App() {
           <span />
         </button>
         <p className="hero-eyebrow">Potluck signup</p>
-        <h1 className="hero-name">{eventName}</h1>
+        <h1 className="hero-name">{displayEventName(event, eventName)}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
         <div className="stats">
           <div className="stat">
@@ -763,8 +755,11 @@ export default function App() {
             </button>
           </>
         )}
-        {showIosHint && (
+        {installHint === 'ios' && (
           <p className="hint">On iPhone or iPad: tap the Share button in Safari, then &ldquo;Add to Home Screen&rdquo;.</p>
+        )}
+        {installHint === 'menu' && (
+          <p className="hint">Open your browser menu and choose &ldquo;Install app&rdquo; or &ldquo;Add to Home Screen&rdquo;.</p>
         )}
       </footer>
 
