@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanEvent, cleanSignup, mergeTargets, scanAdminEvents } from './storage.ts'
+import { cleanEvent, cleanSignup, mergeTargets, resolveMode, scanAdminEvents } from './storage.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS } from './types.ts'
 
 function rawSignup(partial: Record<string, unknown> = {}): Record<string, unknown> {
@@ -180,5 +180,23 @@ describe('scanAdminEvents', () => {
   it('skips empty slugs and empty tokens', () => {
     const found = scanAdminEvents(fakeStorage({ 'potluck:admin-token:': 'tok', 'potluck:admin-token:blank': '' }))
     expect(found).toEqual([])
+  })
+})
+
+describe('resolveMode', () => {
+  it('defaults to supabase when nothing is saved', () => {
+    expect(resolveMode(null)).toBe('supabase')
+  })
+
+  it('keeps an explicitly saved mode, including local', () => {
+    expect(resolveMode('local')).toBe('local')
+    expect(resolveMode('url')).toBe('url')
+    expect(resolveMode('apps-script')).toBe('apps-script')
+    expect(resolveMode('supabase')).toBe('supabase')
+  })
+
+  it('falls back to supabase on a garbage value', () => {
+    expect(resolveMode('banana')).toBe('supabase')
+    expect(resolveMode('')).toBe('supabase')
   })
 })

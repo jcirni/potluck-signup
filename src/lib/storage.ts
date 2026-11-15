@@ -4,6 +4,11 @@ import { COURSES, DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isAccent
 
 export type StoreMode = 'local' | 'url' | 'apps-script' | 'supabase'
 
+/** A saved mode wins; anything missing or unrecognized defaults to the shared Supabase backend. */
+export function resolveMode(saved: string | null): StoreMode {
+  return saved === 'local' || saved === 'url' || saved === 'apps-script' || saved === 'supabase' ? saved : 'supabase'
+}
+
 /**
  * One store interface for every backend, so the frontend never talks to a
  * backend directly. Userless: identity is a token; only SHA-256 token

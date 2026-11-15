@@ -23,6 +23,7 @@ import {
   getStoredSetting,
   mergeTargets,
   ownsSignup,
+  resolveMode,
   setStoredSetting,
   sha256Hex,
   type SignupStore,
@@ -86,11 +87,8 @@ export default function App() {
     if (typeof window === 'undefined') return false
     return !new URLSearchParams(window.location.search).get('event') && !/#s=/.test(window.location.hash)
   })
-  const [mode, setMode] = useState<StoreMode>(() => {
-    const saved = localStorage.getItem(MODE_KEY)
-    return saved === 'url' || saved === 'apps-script' || saved === 'supabase' ? saved : 'local'
-  })
-  const [store, setStore] = useState<SignupStore>(() => createStore('local'))
+  const [mode, setMode] = useState<StoreMode>(() => resolveMode(localStorage.getItem(MODE_KEY)))
+  const [store, setStore] = useState<SignupStore>(() => createStore(mode))
   const [signups, setSignups] = useState<Signup[]>([])
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
