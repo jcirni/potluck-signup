@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { buildICS, icsFilename } from './ics.ts'
+import { describe, expect, it, vi } from 'vitest'
+import { buildICS, icsFilename, isShareAbort, shareOrDownloadIcs } from './ics.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, type PotluckEvent, type Signup } from './types.ts'
 
 function event(partial: Partial<PotluckEvent>): PotluckEvent {
@@ -60,5 +60,41 @@ describe('buildICS', () => {
     expect(ics).toContain('SUMMARY:Smith\\, Jones\\; Reunion')
     expect(ics).toContain('Salmon (Joe)')
     expect(ics).toContain('Stuffing (Val)')
+  })
+})
+
+describe('shareOrDownloadIcs', () => {
+  const base = { text: 'BEGIN:VCALENDAR', filename: 'party.ics', title: 'Party' }
+
+  it('shares when file sharing is supported and the share succeeds', async () => {
+    const download = vi.fn()
+    const nav = { canShare: () => true, share: vi.fn(async () => {}) }
+    await expect(shareOrDownloadIcs({ ...base, nav, download })).resolves.toBe('shared')
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('stays silent on a genuine user dismissal (AbortError)', async () => {
+    const download = vi.fn()
+    const nav = { canShare: () => true, share: vi.fn(async () => { throw new DOMException('cancelled', 'AbortError') }) }
+    await expect(shareOrDownloadIcs({ ...base, nav, download })).resolves.toBe('cancelled')
+    expect(download).not.toHaveBeenCalled()
+    expect(isShareAbort(new DOMException('x', 'AbortError'))).toBe(true)
+    expect(isShareAbort(new DOMException('x', 'NotAllowedError'))).toBe(false)
+  })
+
+  it('falls back to download when share rejects with NotAllowedError', async () => {
+    const download = vi.fn()
+    const nav = { canShare: () => true, share: vi.fn(async () => { throw new DOMException('no gesture', 'NotAllowedError') }) }
+    await expect(shareOrDownloadIcs({ ...base, nav, download })).resolves.toBe('downloaded')
+    expect(download).toHaveBeenCalledTimes(1)
+    expect(download).toHaveBeenCalledWith(base.text, base.filename)
+  })
+
+  it('downloads directly when file sharing is unsupported', async () => {
+    const download = vi.fn()
+    const nav = { canShare: () => false, share: vi.fn(async () => {}) }
+    await expect(shareOrDownloadIcs({ ...base, nav, download })).resolves.toBe('downloaded')
+    expect(nav.share).not.toHaveBeenCalled()
+    expect(download).toHaveBeenCalledTimes(1)
   })
 })

@@ -15,6 +15,53 @@ export function icsFilename(event: PotluckEvent): string {
   return `${event.id}.ics`
 }
 
+/** Only a genuine user dismissal (AbortError) should stay silent; other share failures fall back to download. */
+export function isShareAbort(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { name?: unknown }).name === 'AbortError'
+}
+
+/** Download the .ics via a temporary anchor in the DOM; revoke the object URL after a tick so the click lands. */
+export function downloadIcs(icsText: string, filename: string): void {
+  const url = URL.createObjectURL(new Blob([icsText], { type: 'text/calendar' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export interface ShareNavigatorLike {
+  canShare?: (data: ShareData) => boolean
+  share: (data: ShareData) => Promise<void>
+}
+
+/** Share the .ics when files are shareable; download on any share failure except a user dismissal. */
+export async function shareOrDownloadIcs(opts: {
+  text: string
+  filename: string
+  title: string
+  nav?: ShareNavigatorLike
+  download?: (text: string, filename: string) => void
+}): Promise<'shared' | 'cancelled' | 'downloaded'> {
+  const nav = opts.nav ?? (typeof navigator !== 'undefined' ? (navigator as ShareNavigatorLike) : undefined)
+  const download = opts.download ?? downloadIcs
+  const file = new File([opts.text], opts.filename, { type: 'text/calendar' })
+  if (nav && typeof nav.canShare === 'function' && nav.canShare({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: opts.title })
+      return 'shared'
+    } catch (err) {
+      if (isShareAbort(err)) return 'cancelled'
+      download(opts.text, opts.filename)
+      return 'downloaded'
+    }
+  }
+  download(opts.text, opts.filename)
+  return 'downloaded'
+}
+
 /** Build an .ics file for the event ('' when it has no date yet). All-day; the description carries the menu. */
 export function buildICS(event: PotluckEvent, signups: Signup[]): string {
   if (!event.date) return ''
