@@ -41,7 +41,7 @@ export function buildSuggestionPayload(input: DishSuggestionInput): DishSuggesti
 
 type FetchFn = typeof fetch
 
-/** POST one suggestion to the built-in Supabase project; true when the row landed. */
+/** POST one suggestion to the configured Supabase project (same build-env config as the store); true when the row landed. */
 async function postSuggestion(payload: DishSuggestionPayload, fetchFn: FetchFn): Promise<boolean> {
   try {
     const res = await fetchFn(`${DEFAULT_SUPABASE_URL}/rest/v1/dish_suggestions`, {

@@ -29,6 +29,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # Repository variables point a staging copy at its own project; the production project is the fallback.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://qpzohrhtyhwcvukzjoep.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwem9ocmh0eWh3Y3Z1a3pqb2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2ODUxNDQsImV4cCI6MjExMDI2MTE0NH0.7XhSSNR-KoKrFLQDsZYSNQMOCndbqMkmiRUffau8BiU' }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
