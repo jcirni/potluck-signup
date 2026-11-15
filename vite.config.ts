@@ -9,8 +9,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Potluck Signup',
-        short_name: 'Potluck',
+        name: 'Bring a Dish',
+        short_name: 'Bring a Dish',
         description:
           'Sign up for a potluck, see who is coming and what they are bringing, and spot what the menu still needs.',
         theme_color: '#FFF8F0',

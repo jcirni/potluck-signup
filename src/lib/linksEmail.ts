@@ -1,6 +1,6 @@
 /** A mailto: href carrying an event's links, so the host can email them to themselves and not lose them. */
 export function buildLinksMailto(input: { eventName: string; guestUrl: string; adminUrl?: string }): string {
-  const subject = `Your potluck links: ${input.eventName}`
+  const subject = `Your Bring a Dish links: ${input.eventName}`
   const lines = [`Your links for ${input.eventName}:`, '', 'Guest link (share this one):', input.guestUrl]
   if (input.adminUrl) {
     lines.push('', 'Host link (keep this one private: it controls the event):', input.adminUrl)

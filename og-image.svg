@@ -9,7 +9,7 @@
     <rect x="96" y="344" width="320" height="20"/>
     <rect x="76" y="380" width="360" height="24" rx="12"/>
   </g>
-  <text x="600" y="452" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="94" font-weight="800" fill="#1B1712">Potluck Signup</text>
+  <text x="600" y="452" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="94" font-weight="800" fill="#1B1712">Bring a Dish</text>
   <text x="600" y="522" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="33" fill="#6F675C">See what's already coming, claim what's missing,</text>
   <text x="600" y="568" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="33" fill="#6F675C">and sign up to bring a dish.</text>
 </svg>

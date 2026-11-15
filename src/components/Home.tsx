@@ -42,7 +42,7 @@ export default function Home({ store, mode, showInstallButton, installHint, onIn
     <>
       <header className="hero home-hero">
         <img className="home-icon" src="icons/icon.svg" alt="" width={76} height={76} />
-        <h1 className="hero-name">Potluck Signup</h1>
+        <h1 className="hero-name">Bring a Dish</h1>
         <p className="home-tagline">
           See what&rsquo;s already coming, claim what&rsquo;s missing, and sign up to bring a dish.
         </p>

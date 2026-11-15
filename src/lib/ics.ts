@@ -71,7 +71,7 @@ export function buildICS(event: PotluckEvent, signups: Signup[]): string {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Potluck Signup//EN',
+    'PRODID:-//Bring a Dish//EN',
     'BEGIN:VEVENT',
     `UID:${event.id}@potluck-signup`,
     `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')}`,

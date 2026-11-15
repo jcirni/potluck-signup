@@ -558,10 +558,10 @@ export default function App() {
         <div className="hero-top">
           <a className="home-link" href="./">
             <img src="icons/icon.svg" alt="" width={20} height={20} />
-            Potluck Signup
+            Bring a Dish
           </a>
         </div>
-        <p className="hero-eyebrow">Potluck signup</p>
+        <p className="hero-eyebrow">Bring a Dish</p>
         <h1 className="hero-name">{displayEventName(event, eventName)}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
         {event?.location && <p className="hero-location">{event.location}</p>}

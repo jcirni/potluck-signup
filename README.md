@@ -1,4 +1,4 @@
-# Potluck signup
+# Bring a Dish
 
 A userless potluck signup app. Anyone can create an event, share one
 link, and every guest can see who is coming, what they are bringing,

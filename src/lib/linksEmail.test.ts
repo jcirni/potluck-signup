@@ -17,13 +17,13 @@ describe('buildLinksMailto', () => {
   it('addresses nobody and puts the event name in the subject', () => {
     const href = buildLinksMailto({ eventName: 'Taco Night', guestUrl: guest })
     expect(href.startsWith('mailto:?subject=')).toBe(true)
-    expect(parts(href).subject).toBe('Your potluck links: Taco Night')
+    expect(parts(href).subject).toBe('Your Bring a Dish links: Taco Night')
   })
 
   it('encodes special characters in the subject', () => {
     const href = buildLinksMailto({ eventName: 'Fish & Chips Night?', guestUrl: guest })
     expect(href).not.toContain('Fish & Chips')
-    expect(parts(href).subject).toBe('Your potluck links: Fish & Chips Night?')
+    expect(parts(href).subject).toBe('Your Bring a Dish links: Fish & Chips Night?')
   })
 
   it('names the event and includes the guest link and closing line in the body', () => {
