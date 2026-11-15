@@ -13,8 +13,8 @@ export default defineConfig({
         short_name: 'Potluck',
         description:
           'Sign up for a potluck, see who is coming and what they are bringing, and spot what the menu still needs.',
-        theme_color: '#16130e',
-        background_color: '#16130e',
+        theme_color: '#FFF8F0',
+        background_color: '#FFF8F0',
         display: 'standalone',
         // Relative start_url/scope: works from any GitHub Pages subpath, matching base: './'.
         start_url: '.',

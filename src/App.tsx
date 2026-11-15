@@ -42,6 +42,9 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+// Picker labels for the stored accent keys.
+const ACCENT_LABELS: Record<Accent, string> = { brass: 'Coral', burgundy: 'Plum', forest: 'Teal', slate: 'Charcoal' }
+
 const MODE_KEY = 'potluck:store-mode'
 const TARGETS_KEY = 'potluck:targets:v1'
 const EVENT_KEY = 'potluck:event-name'
@@ -808,9 +811,9 @@ export default function App() {
                       className={`swatch${accent === a ? ' selected' : ''}`}
                       data-swatch={a}
                       onClick={() => void pickAccent(a)}
-                      aria-label={`${a} accent`}
+                      aria-label={`${ACCENT_LABELS[a]} accent`}
                       aria-pressed={accent === a}
-                      title={a}
+                      title={ACCENT_LABELS[a]}
                     />
                   ))}
                 </div>
