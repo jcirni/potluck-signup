@@ -237,6 +237,9 @@ export default function App() {
     if (!q) return sorted
     return sorted.filter((d) => `${d.name} ${d.cuisine} ${d.course}`.toLowerCase().includes(q))
   }, [dishes, dishFilter])
+  // The search text doubles as an add-your-own entry unless it exactly names a catalog dish.
+  const ownDishName = dishFilter.trim()
+  const showOwnDish = ownDishName !== '' && !filteredDishes.some((d) => d.name.toLowerCase() === ownDishName.toLowerCase())
 
   /** Sticky mobile button target: bring the signup form into view. */
   function scrollToForm() {
@@ -249,6 +252,15 @@ export default function App() {
     setForm((f) => ({ ...f, course }))
     formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
     window.setTimeout(() => nameRef.current?.focus({ preventScroll: true }), 400)
+  }
+
+  /** Adding your own dish from the search box: the typed text becomes the dish, un-picked. */
+  function addOwnDish() {
+    const name = dishFilter.trim()
+    if (!name) return
+    setPickedDishId(null)
+    setForm((f) => ({ ...f, dish: name }))
+    nameRef.current?.focus({ preventScroll: true })
   }
 
   /** Picking a catalog dish fills the form from it; the dish id rides along on submit. */
@@ -576,8 +588,14 @@ export default function App() {
                   </button>
                 </p>
               )}
+              {showOwnDish && (
+                <button type="button" className="picker-row own" onClick={addOwnDish}>
+                  <span className="picker-name">+ Bring your own: {ownDishName}</span>
+                  <span className="badge">not in the catalog</span>
+                </button>
+              )}
               {filteredDishes.length === 0 ? (
-                <p className="hint">No dishes match. You can still type your own dish below.</p>
+                <p className="hint">No dishes in the catalog match. Add yours above, or type it in the dish field below.</p>
               ) : (
                 <ul className="picker-list">
                   {filteredDishes.slice(0, 60).map((d) => (
