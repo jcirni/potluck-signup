@@ -543,14 +543,14 @@ export default function App() {
           )}
         </div>
         <nav className="hero-nav" aria-label="Jump to a section">
+          <button type="button" onClick={() => scrollToSection(menuSectionRef)}>
+            The menu
+          </button>
           <button type="button" onClick={() => scrollToSection(gapSectionRef)}>
             What&rsquo;s needed
           </button>
           <button type="button" onClick={scrollToForm}>
             Sign up
-          </button>
-          <button type="button" onClick={() => scrollToSection(menuSectionRef)}>
-            The menu
           </button>
         </nav>
         <div className="hero-actions">
@@ -564,6 +564,73 @@ export default function App() {
           )}
         </div>
       </header>
+      <div className="menu-band">
+      <section id="menu" ref={menuSectionRef}>
+        <h2>The menu so far</h2>
+        {!loaded ? (
+          <p className="hint">Loading…</p>
+        ) : signups.length === 0 ? (
+          <p className="hint">Nobody has signed up yet. Be the first.</p>
+        ) : (
+          <div className="menu-grid">
+            {COURSES.map((course) => {
+              const rows = signups.filter((s) => s.course === course)
+              if (rows.length === 0) return null
+              return (
+                <div key={course} className="course-group">
+                  <h3>
+                    {course} ({rows.length})
+                  </h3>
+                  <ul className="menu">
+                    {rows.map((s) => {
+                      const canEdit = s.sample === true || ownsSignup(s.id)
+                      return (
+                        <li key={s.id}>
+                          <strong>{s.dish}</strong> — {s.name}
+                          {s.servings > 0 && <span className="hint"> · serves {s.servings}</span>}
+                          {s.needOven && <span className="tag">oven</span>}
+                          {s.allergies && <span className="hint"> · {s.allergies}</span>}
+                          {s.sample === true && <span className="tag sample">sample</span>}
+                          {canEdit && (
+                            <span className="actions">
+                              {confirmRemoveId === s.id ? (
+                                <>
+                                  <span>Remove this signup?</span>
+                                  <button type="button" className="link danger" onClick={() => void removeSignup(s)}>
+                                    Confirm
+                                  </button>
+                                  <button type="button" className="link" onClick={() => setConfirmRemoveId(null)}>
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button type="button" className="link" onClick={() => startEdit(s)}>
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="link danger"
+                                    onClick={() => setConfirmRemoveId(s.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </>
+                              )}
+                            </span>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+      </div>
+
 
       <div className="layout">
       <aside>
@@ -867,68 +934,6 @@ export default function App() {
           )}
         </section>
 
-        <section id="menu" ref={menuSectionRef}>
-          <h2>The menu so far</h2>
-          {!loaded ? (
-            <p className="hint">Loading…</p>
-          ) : signups.length === 0 ? (
-            <p className="hint">Nobody has signed up yet. Be the first.</p>
-          ) : (
-            COURSES.map((course) => {
-              const rows = signups.filter((s) => s.course === course)
-              if (rows.length === 0) return null
-              return (
-                <div key={course} className="course-group">
-                  <h3>
-                    {course} ({rows.length})
-                  </h3>
-                  <ul className="menu">
-                    {rows.map((s) => {
-                      const canEdit = s.sample === true || ownsSignup(s.id)
-                      return (
-                        <li key={s.id}>
-                          <strong>{s.dish}</strong> — {s.name}
-                          {s.servings > 0 && <span className="hint"> · serves {s.servings}</span>}
-                          {s.needOven && <span className="tag">oven</span>}
-                          {s.allergies && <span className="hint"> · {s.allergies}</span>}
-                          {s.sample === true && <span className="tag sample">sample</span>}
-                          {canEdit && (
-                            <span className="actions">
-                              {confirmRemoveId === s.id ? (
-                                <>
-                                  <span>Remove this signup?</span>
-                                  <button type="button" className="link danger" onClick={() => void removeSignup(s)}>
-                                    Confirm
-                                  </button>
-                                  <button type="button" className="link" onClick={() => setConfirmRemoveId(null)}>
-                                    Cancel
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button type="button" className="link" onClick={() => startEdit(s)}>
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="link danger"
-                                    onClick={() => setConfirmRemoveId(s.id)}
-                                  >
-                                    Remove
-                                  </button>
-                                </>
-                              )}
-                            </span>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              )
-            })
-          )}
-        </section>
       </main>
       </div>
 

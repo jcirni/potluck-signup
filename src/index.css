@@ -60,6 +60,9 @@ button.primary { background: var(--ink); color: var(--bg); border: 0; padding: 1
 button.primary:hover { background: var(--accent); }
 button.link { background: none; border: 0; color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; padding: 0; }
 button.link.danger { color: var(--danger); }
+.menu-band { width: min(1068px, calc(100% - 32px)); margin: 22px auto 2px; }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px 22px; align-items: start; }
+.course-group h3 { margin-top: 10px; }
 .menu { list-style: none; padding: 0; margin: 0; }
 .menu li { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 14px; padding: 10px 14px; margin-bottom: 6px; }
 .tag { background: var(--accent-soft); border: 1px solid var(--line-soft); color: var(--accent-bright); border-radius: 999px; padding: 0 8px; margin-left: 6px; font-size: 0.8em; }
