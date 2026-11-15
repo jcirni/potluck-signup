@@ -87,6 +87,7 @@ export default function App() {
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
   const [confirmClearSamples, setConfirmClearSamples] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [event, setEvent] = useState<PotluckEvent | null>(null)
   const [accent, setAccent] = useState<Accent>(() => {
@@ -113,6 +114,20 @@ export default function App() {
       window.removeEventListener('appinstalled', onInstalled)
     }
   }, [])
+
+  // The management drawer closes on Escape and locks page scroll while open.
+  useEffect(() => {
+    if (!manageOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setManageOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [manageOpen])
 
   const installApp = useCallback(async () => {
     if (!installPrompt) return
@@ -350,25 +365,20 @@ export default function App() {
   return (
     <div className="page" data-accent={accent}>
       <header className="hero">
+        <button
+          type="button"
+          className="burger"
+          onClick={() => setManageOpen(true)}
+          aria-label="Manage event"
+          aria-haspopup="dialog"
+        >
+          <span />
+          <span />
+          <span />
+        </button>
         <p className="hero-eyebrow">Potluck signup</p>
         <h1 className="hero-name">{eventName}</h1>
         {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
-        {canEditAccent && (
-          <div className="swatches" role="group" aria-label="Event accent color">
-            {ACCENTS.map((a) => (
-              <button
-                key={a}
-                type="button"
-                className={`swatch${accent === a ? ' selected' : ''}`}
-                data-swatch={a}
-                onClick={() => void pickAccent(a)}
-                aria-label={`${a} accent`}
-                aria-pressed={accent === a}
-                title={a}
-              />
-            ))}
-          </div>
-        )}
         <div className="stats">
           <div className="stat">
             <span className="stat-num">{signups.length}</span>
@@ -389,15 +399,15 @@ export default function App() {
             </div>
           )}
         </div>
+        <div className="hero-actions">
+          <button type="button" className="link" onClick={copyShareLink}>
+            Copy share link
+          </button>
+        </div>
       </header>
 
       <div className="layout">
       <aside>
-        <label className="event-label">
-          Event name
-          <input value={eventName} onChange={(e) => saveEventName(e.target.value)} aria-label="Event name" />
-        </label>
-
         <section className="panel">
           <h2>We could use more of</h2>
           {gaps.length === 0 && <p className="good">Every course has hit its target. Nice spread.</p>}
@@ -422,24 +432,6 @@ export default function App() {
               </li>
             ))}
           </ul>
-          <details>
-            <summary>Change the targets</summary>
-            <div className="targets">
-              {COURSES.map((course) => (
-                <label key={course}>
-                  {course}
-                  <input
-                    type="number"
-                    min={0}
-                    value={targets[course]}
-                    onChange={(e) =>
-                      saveTargets({ ...targets, [course]: Math.max(0, Number(e.target.value) || 0) })
-                    }
-                  />
-                </label>
-              ))}
-            </div>
-          </details>
         </section>
 
         {allergies.length > 0 && (
@@ -455,78 +447,6 @@ export default function App() {
           </section>
         )}
 
-        <section className="panel">
-          <h2>Where signups live</h2>
-          <label>
-            Storage
-            <select value={mode} onChange={(e) => setMode(e.target.value as StoreMode)}>
-              <option value="local">This browser only (demo)</option>
-              <option value="url">Share link — snapshot in the URL</option>
-              <option value="apps-script">Google Sheet (Apps Script)</option>
-              <option value="supabase">Supabase (Postgres)</option>
-            </select>
-          </label>
-          <p className="hint">{store.note}</p>
-          <div className="row">
-            <button type="button" onClick={() => void refresh(store, false)}>
-              Refresh
-            </button>
-            <button type="button" onClick={() => setShowSettings((v) => !v)}>
-              {showSettings ? 'Hide settings' : 'Settings'}
-            </button>
-            <button type="button" onClick={copyShareLink}>
-              Copy share link
-            </button>
-            {installPrompt && (
-              <button type="button" onClick={() => void installApp()}>
-                Install app
-              </button>
-            )}
-          </div>
-          {showSettings && (
-            <div className="settings">
-              <label>
-                Apps Script web app URL
-                <input
-                  type="url"
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  value={appsScriptUrl}
-                  onChange={(e) => {
-                    setAppsScriptUrl(e.target.value)
-                    setStoredSetting(APPS_SCRIPT_URL_STORAGE_KEY, e.target.value)
-                  }}
-                />
-              </label>
-              <label>
-                Supabase project URL
-                <input
-                  type="url"
-                  placeholder="https://xyzcompany.supabase.co"
-                  value={supabaseUrl}
-                  onChange={(e) => {
-                    setSupabaseUrl(e.target.value)
-                    setStoredSetting(SUPABASE_URL_STORAGE_KEY, e.target.value)
-                  }}
-                />
-              </label>
-              <label>
-                Supabase anon key
-                <input
-                  type="password"
-                  value={supabaseKey}
-                  onChange={(e) => {
-                    setSupabaseKey(e.target.value)
-                    setStoredSetting(SUPABASE_KEY_STORAGE_KEY, e.target.value)
-                  }}
-                />
-              </label>
-              <p className="hint">
-                Keys live in this browser only. The backend code is in <code>backend/Code.gs</code> (Apps Script) and{' '}
-                <code>backend/supabase.sql</code> (Supabase).
-              </p>
-            </div>
-          )}
-        </section>
       </aside>
 
       <main>
@@ -538,25 +458,7 @@ export default function App() {
         )}
         {hasSample && (
           <p className="notice">
-            {confirmClearSamples ? (
-              <>
-                Clear the four sample rows from the 2024 sheet and start fresh?{' '}
-                <button type="button" className="link danger" onClick={() => void clearSample()}>
-                  Confirm
-                </button>{' '}
-                <button type="button" className="link" onClick={() => setConfirmClearSamples(false)}>
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <>
-                Showing four sample rows from the 2024 Friendsgiving sheet (Howard, Joe, Valerie, Gardner).{' '}
-                <button type="button" className="link" onClick={() => setConfirmClearSamples(true)}>
-                  Clear sample data
-                </button>{' '}
-                to start fresh.
-              </>
-            )}
+            Showing four sample rows from the 2024 Friendsgiving sheet (Howard, Joe, Valerie, Gardner).
           </p>
         )}
         {duplicates.length > 0 && (
@@ -747,7 +649,180 @@ export default function App() {
         </section>
       </main>
       </div>
-      {!formInView && (
+
+      <footer className="page-footer">
+        <button type="button" className="link" onClick={() => setManageOpen(true)}>
+          Manage event
+        </button>
+      </footer>
+
+      {manageOpen && (
+        <>
+          <div className="drawer-backdrop" onClick={() => setManageOpen(false)} />
+          <div className="drawer" role="dialog" aria-modal="true" aria-label="Manage event">
+            <div className="drawer-head">
+              <h2>Manage event</h2>
+              <button type="button" className="drawer-close" onClick={() => setManageOpen(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+
+            <section className="drawer-section">
+              <label className="event-label">
+                Event name
+                <input value={eventName} onChange={(e) => saveEventName(e.target.value)} aria-label="Event name" />
+              </label>
+            </section>
+
+            {canEditAccent && (
+              <section className="drawer-section">
+                <h3>Accent color</h3>
+                <div className="swatches" role="group" aria-label="Event accent color">
+                  {ACCENTS.map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      className={`swatch${accent === a ? ' selected' : ''}`}
+                      data-swatch={a}
+                      onClick={() => void pickAccent(a)}
+                      aria-label={`${a} accent`}
+                      aria-pressed={accent === a}
+                      title={a}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="drawer-section">
+              <h3>Course targets</h3>
+              <div className="targets">
+                {COURSES.map((course) => (
+                  <label key={course}>
+                    {course}
+                    <input
+                      type="number"
+                      min={0}
+                      value={targets[course]}
+                      onChange={(e) =>
+                        saveTargets({ ...targets, [course]: Math.max(0, Number(e.target.value) || 0) })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section className="drawer-section">
+              <h3>Where signups live</h3>
+              <label className="event-label">
+                Storage
+                <select value={mode} onChange={(e) => setMode(e.target.value as StoreMode)}>
+                  <option value="local">This browser only (demo)</option>
+                  <option value="url">Share link — snapshot in the URL</option>
+                  <option value="apps-script">Google Sheet (Apps Script)</option>
+                  <option value="supabase">Supabase (Postgres)</option>
+                </select>
+              </label>
+              <p className="hint">{store.note}</p>
+              <div className="row">
+                <button type="button" onClick={() => void refresh(store, false)}>
+                  Refresh
+                </button>
+                <button type="button" onClick={() => setShowSettings((v) => !v)}>
+                  {showSettings ? 'Hide settings' : 'Settings'}
+                </button>
+                {installPrompt && (
+                  <button type="button" onClick={() => void installApp()}>
+                    Install app
+                  </button>
+                )}
+              </div>
+              {showSettings && (
+                <div className="settings">
+                  <label>
+                    Apps Script web app URL
+                    <input
+                      type="url"
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                      value={appsScriptUrl}
+                      onChange={(e) => {
+                        setAppsScriptUrl(e.target.value)
+                        setStoredSetting(APPS_SCRIPT_URL_STORAGE_KEY, e.target.value)
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Supabase project URL
+                    <input
+                      type="url"
+                      placeholder="https://xyzcompany.supabase.co"
+                      value={supabaseUrl}
+                      onChange={(e) => {
+                        setSupabaseUrl(e.target.value)
+                        setStoredSetting(SUPABASE_URL_STORAGE_KEY, e.target.value)
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Supabase anon key
+                    <input
+                      type="password"
+                      value={supabaseKey}
+                      onChange={(e) => {
+                        setSupabaseKey(e.target.value)
+                        setStoredSetting(SUPABASE_KEY_STORAGE_KEY, e.target.value)
+                      }}
+                    />
+                  </label>
+                  <p className="hint">
+                    Keys live in this browser only. The backend code is in <code>backend/Code.gs</code> (Apps Script) and{' '}
+                    <code>backend/supabase.sql</code> (Supabase).
+                  </p>
+                </div>
+              )}
+            </section>
+
+            <section className="drawer-section">
+              <h3>Share link</h3>
+              <p className="share-link">
+                <code>{window.location.href}</code>
+              </p>
+              <div className="row">
+                <button type="button" onClick={copyShareLink}>
+                  Copy share link
+                </button>
+              </div>
+            </section>
+
+            {hasSample && (
+              <section className="drawer-section">
+                <h3>Sample data</h3>
+                {confirmClearSamples ? (
+                  <p className="hint">
+                    Clear the four sample rows from the 2024 sheet and start fresh?{' '}
+                    <button type="button" className="link danger" onClick={() => void clearSample()}>
+                      Confirm
+                    </button>{' '}
+                    <button type="button" className="link" onClick={() => setConfirmClearSamples(false)}>
+                      Cancel
+                    </button>
+                  </p>
+                ) : (
+                  <p className="hint">
+                    This event still shows the four sample rows.{' '}
+                    <button type="button" className="link" onClick={() => setConfirmClearSamples(true)}>
+                      Clear sample data
+                    </button>
+                  </p>
+                )}
+              </section>
+            )}
+          </div>
+        </>
+      )}
+
+      {!formInView && !manageOpen && (
         <button type="button" className="sticky-signup" onClick={scrollToForm}>
           {editingId ? 'Back to the form' : 'Sign up'}
         </button>
