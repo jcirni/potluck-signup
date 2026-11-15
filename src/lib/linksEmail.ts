@@ -3,7 +3,7 @@ export function buildLinksMailto(input: { eventName: string; guestUrl: string; a
   const subject = `Your potluck links: ${input.eventName}`
   const lines = [`Your links for ${input.eventName}:`, '', 'Guest link (share this one):', input.guestUrl]
   if (input.adminUrl) {
-    lines.push('', 'Host link (keep this one private — it controls the event):', input.adminUrl)
+    lines.push('', 'Host link (keep this one private: it controls the event):', input.adminUrl)
   }
   lines.push('', 'Anyone with the guest link can sign up. Only the host link can edit event settings.')
   const body = lines.join('\r\n')

@@ -36,7 +36,7 @@ describe('buildLinksMailto', () => {
 
   it('includes the host link only when an admin URL is passed', () => {
     const withAdmin = parts(buildLinksMailto({ eventName: 'Taco Night', guestUrl: guest, adminUrl: admin }))
-    expect(withAdmin.body).toContain('Host link (keep this one private — it controls the event):')
+    expect(withAdmin.body).toContain('Host link (keep this one private: it controls the event):')
     expect(withAdmin.body).toContain(admin)
     const without = parts(buildLinksMailto({ eventName: 'Taco Night', guestUrl: guest }))
     expect(without.body).not.toContain('Host link')
