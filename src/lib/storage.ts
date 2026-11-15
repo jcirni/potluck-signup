@@ -105,14 +105,34 @@ function readTokens(): Record<string, string> {
   }
 }
 
+const ADMIN_TOKEN_PREFIX = 'potluck:admin-token:'
+
 /** Admin token this browser holds for an event (minted when it first ensures the event), if any. */
 export function eventAdminToken(eventId: string): string | undefined {
-  return localStorage.getItem(`potluck:admin-token:${eventId}`) ?? undefined
+  return localStorage.getItem(`${ADMIN_TOKEN_PREFIX}${eventId}`) ?? undefined
 }
 
 /** Keep this browser's raw admin token for an event; only its hash ever goes to the server. */
 export function saveAdminToken(eventId: string, token: string): void {
-  localStorage.setItem(`potluck:admin-token:${eventId}`, token)
+  localStorage.setItem(`${ADMIN_TOKEN_PREFIX}${eventId}`, token)
+}
+
+export interface AdminEventRef {
+  slug: string
+  token: string
+}
+
+/** Every event this browser holds an admin token for, sorted by slug; storage is injectable for tests. */
+export function scanAdminEvents(storage: Storage = localStorage): AdminEventRef[] {
+  const out: AdminEventRef[] = []
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i)
+    if (!key || !key.startsWith(ADMIN_TOKEN_PREFIX)) continue
+    const slug = key.slice(ADMIN_TOKEN_PREFIX.length)
+    const token = storage.getItem(key)
+    if (slug && token) out.push({ slug, token })
+  }
+  return out.sort((a, b) => a.slug.localeCompare(b.slug))
 }
 
 /** An admin link (?event=<id>&admin=<token>) teaches this browser the token, so host controls unlock here too. */

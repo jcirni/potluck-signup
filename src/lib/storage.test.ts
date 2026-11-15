@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanEvent, cleanSignup, mergeTargets } from './storage.ts'
+import { cleanEvent, cleanSignup, mergeTargets, scanAdminEvents } from './storage.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS } from './types.ts'
 
 function rawSignup(partial: Record<string, unknown> = {}): Record<string, unknown> {
@@ -145,5 +145,40 @@ describe('mergeTargets', () => {
     expect(merged).not.toHaveProperty('Veggies')
     expect(mergeTargets({ Mains: 4 }).Mains).toBe(4)
     expect(mergeTargets(null)).toEqual({ ...DEFAULT_TARGETS })
+  })
+})
+
+describe('scanAdminEvents', () => {
+  // Minimal Storage stand-in backed by a plain record.
+  function fakeStorage(entries: Record<string, string>): Storage {
+    const keys = Object.keys(entries)
+    return {
+      length: keys.length,
+      key: (i: number) => keys[i] ?? null,
+      getItem: (k: string) => entries[k] ?? null,
+      setItem: () => undefined,
+      removeItem: () => undefined,
+      clear: () => undefined,
+    } as Storage
+  }
+
+  it('finds admin tokens by prefix, sorted by slug, ignoring everything else', () => {
+    const found = scanAdminEvents(
+      fakeStorage({
+        'potluck:admin-token:zeta-party': 'tok-z',
+        'potluck:tokens:v1': '{"s1":"x"}',
+        'potluck:admin-token:alpha-bbq': 'tok-a',
+        'potluck:store-mode': 'local',
+      }),
+    )
+    expect(found).toEqual([
+      { slug: 'alpha-bbq', token: 'tok-a' },
+      { slug: 'zeta-party', token: 'tok-z' },
+    ])
+  })
+
+  it('skips empty slugs and empty tokens', () => {
+    const found = scanAdminEvents(fakeStorage({ 'potluck:admin-token:': 'tok', 'potluck:admin-token:blank': '' }))
+    expect(found).toEqual([])
   })
 })
