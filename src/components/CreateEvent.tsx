@@ -2,11 +2,10 @@ import { useState } from 'react'
 import { buildNewEvent, createUniqueEvent, eventLinks, randomSuffix, uniqueSlug, type CreatedEvent } from '../lib/eventCreate.ts'
 import { isSpamSubmission } from '../lib/honeypot.ts'
 import { buildLinksMailto } from '../lib/linksEmail.ts'
-import type { SignupStore, StoreMode } from '../lib/storage.ts'
+import type { SignupStore } from '../lib/storage.ts'
 
 interface CreateEventProps {
   store: SignupStore
-  mode: StoreMode
   /** Drawer use gets a Done button; the home page gets a create-another reset instead. */
   onClose?: () => void
   /** Fires after a real creation, so the home page can refresh its your-events list. */
@@ -14,7 +13,7 @@ interface CreateEventProps {
 }
 
 /** The create-event form and its success panel, shared by the event-page drawer and the home page. */
-export default function CreateEvent({ store, mode, onClose, onCreated }: CreateEventProps) {
+export default function CreateEvent({ store, onClose, onCreated }: CreateEventProps) {
   const [form, setForm] = useState({ name: '', date: '', headcount: '' })
   const [honeypot, setHoneypot] = useState('')
   const [creating, setCreating] = useState(false)
@@ -71,11 +70,11 @@ export default function CreateEvent({ store, mode, onClose, onCreated }: CreateE
   }
 
   if (created) {
-    // Snapshot mode carries the event in the link itself, so both links are the current URL.
-    const links =
-      mode === 'url'
-        ? { guest: window.location.href, admin: window.location.href }
-        : eventLinks(`${window.location.origin}${window.location.pathname}`, created.event.id, created.adminToken)
+    const links = eventLinks(
+      `${window.location.origin}${window.location.pathname}`,
+      created.event.id,
+      created.adminToken,
+    )
     return (
       <>
         <p className="good">
@@ -179,14 +178,8 @@ export default function CreateEvent({ store, mode, onClose, onCreated }: CreateE
           {error}
         </p>
       )}
-      {mode === 'apps-script' && (
-        <p className="hint">
-          Shared events need the Supabase storage mode; a Google Sheet hosts one event only. Switch it under Manage
-          event, then create yours.
-        </p>
-      )}
       <div className="row">
-        <button type="submit" className="primary" disabled={creating || mode === 'apps-script'}>
+        <button type="submit" className="primary" disabled={creating}>
           {creating ? 'Creating…' : 'Create event'}
         </button>
       </div>

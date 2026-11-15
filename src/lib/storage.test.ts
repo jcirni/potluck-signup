@@ -188,14 +188,19 @@ describe('resolveMode', () => {
     expect(resolveMode(null)).toBe('supabase')
   })
 
-  it('keeps an explicitly saved mode, including local', () => {
-    expect(resolveMode('local')).toBe('local')
-    expect(resolveMode('url')).toBe('url')
-    expect(resolveMode('apps-script')).toBe('apps-script')
-    expect(resolveMode('supabase')).toBe('supabase')
+  it('keeps a saved local mode only when dev stores are enabled', () => {
+    expect(resolveMode('local', true)).toBe('local')
+    expect(resolveMode('supabase', true)).toBe('supabase')
   })
 
-  it('falls back to supabase on a garbage value', () => {
+  it('ignores any saved mode when dev stores are off, as in production', () => {
+    expect(resolveMode('local', false)).toBe('supabase')
+    expect(resolveMode(null, false)).toBe('supabase')
+  })
+
+  it('falls back to supabase on legacy or garbage values', () => {
+    expect(resolveMode('url', true)).toBe('supabase')
+    expect(resolveMode('apps-script', true)).toBe('supabase')
     expect(resolveMode('banana')).toBe('supabase')
     expect(resolveMode('')).toBe('supabase')
   })

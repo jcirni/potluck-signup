@@ -2,11 +2,17 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { DietaryNeeds, PotluckEvent, Signup, Targets } from './types.ts'
 import { COURSES, DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isAccent, normalizeCourse } from './types.ts'
 
-export type StoreMode = 'local' | 'url' | 'apps-script' | 'supabase'
+export type StoreMode = 'supabase' | 'local'
 
-/** A saved mode wins; anything missing or unrecognized defaults to the shared Supabase backend. */
-export function resolveMode(saved: string | null): StoreMode {
-  return saved === 'local' || saved === 'url' || saved === 'apps-script' || saved === 'supabase' ? saved : 'supabase'
+/** Dev stores (local browser storage, the mode switcher) exist only in dev builds or with VITE_ENABLE_DEV_STORES=1. */
+export function devStoresEnabled(): boolean {
+  return import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_STORES === '1'
+}
+
+/** Production ignores any saved mode: Supabase is the only store. Dev builds honor a saved local mode. */
+export function resolveMode(saved: string | null, devStores: boolean = devStoresEnabled()): StoreMode {
+  if (!devStores) return 'supabase'
+  return saved === 'local' || saved === 'supabase' ? saved : 'supabase'
 }
 
 /**
@@ -43,14 +49,13 @@ export interface SignupStore {
 const LOCAL_EVENTS_KEY = 'potluck:events:v1'
 const LOCAL_SIGNUPS_KEY = 'potluck:signups:v1'
 const TOKEN_KEY = 'potluck:tokens:v1'
-const APPS_SCRIPT_URL_KEY = 'potluck:apps-script-url'
-const APPS_SCRIPT_EVENT_KEY = 'potluck:apps-script-event'
 const SUPABASE_URL_KEY = 'potluck:supabase-url'
 const SUPABASE_KEY_KEY = 'potluck:supabase-anon-key'
 
-/** Built-in project, used when Settings has no override. Both values are public by design; RLS and token checks protect writes. */
-export const DEFAULT_SUPABASE_URL = 'https://qpzohrhtyhwcvukzjoep.supabase.co'
+/** Project config comes from the build env (repo variables in the deploy workflow); the production project is the fallback. Both values are public by design; RLS and token checks protect writes. */
+export const DEFAULT_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qpzohrhtyhwcvukzjoep.supabase.co'
 export const DEFAULT_SUPABASE_ANON_KEY =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwem9ocmh0eWh3Y3Z1a3pqb2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2ODUxNDQsImV4cCI6MjExMDI2MTE0NH0.7XhSSNR-KoKrFLQDsZYSNQMOCndbqMkmiRUffau8BiU'
 
 /** The event the single-event UI is bound to (the demo event). */
@@ -65,7 +70,6 @@ export function setStoredSetting(key: string, value: string): void {
   else localStorage.removeItem(key)
 }
 
-export const APPS_SCRIPT_URL_STORAGE_KEY = APPS_SCRIPT_URL_KEY
 export const SUPABASE_URL_STORAGE_KEY = SUPABASE_URL_KEY
 export const SUPABASE_KEY_STORAGE_KEY = SUPABASE_KEY_KEY
 
@@ -262,7 +266,7 @@ export function cleanSignupList(raw: unknown): Signup[] {
   return raw.map(cleanSignup).filter((s): s is Signup => s !== null)
 }
 
-/** Demo / single-browser mode. Events and signups live in this browser only. */
+/** Demo / single-browser mode, dev builds only. Events and signups live in this browser only. */
 export class LocalStore implements SignupStore {
   mode: StoreMode = 'local'
   label = 'This browser only'
@@ -340,212 +344,6 @@ export class LocalStore implements SignupStore {
   }
 }
 
-interface UrlSnapshot {
-  event: PotluckEvent | null
-  signups: Signup[]
-}
-
-/**
- * Snapshot mode: event + list are Base64URL JSON in the URL hash (#s=...),
- * so the link carries the state. It forks when two people sign up from the
- * same link, so use it for snapshots/exports, not the live signup system.
- */
-export class UrlSnapshotStore implements SignupStore {
-  mode: StoreMode = 'url'
-  label = 'Share link (snapshot)'
-  note = 'The event and its list live in the link itself (#s=...). Share a snapshot, but two people signing up from the same link will fork into different lists, and only the latest event fits in a link.'
-
-  get eventId(): string {
-    return this.readSnapshot().event?.id ?? DEFAULT_EVENT_ID
-  }
-
-  private readSnapshot(): UrlSnapshot {
-    const match = /#s=([A-Za-z0-9_-]+)/.exec(window.location.hash)
-    if (!match) return { event: null, signups: [] }
-    try {
-      const json = atob(match[1].replace(/-/g, '+').replace(/_/g, '/'))
-      const raw = JSON.parse(decodeURIComponent(escape(json))) as { event?: unknown; signups?: unknown }
-      return { event: cleanEvent(raw.event), signups: cleanSignupList(raw.signups) }
-    } catch {
-      return { event: null, signups: [] }
-    }
-  }
-
-  private writeSnapshot(snapshot: UrlSnapshot): void {
-    const json = unescape(encodeURIComponent(JSON.stringify(snapshot)))
-    const encoded = btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-    const url = new URL(window.location.href)
-    url.hash = `s=${encoded}`
-    window.history.replaceState(null, '', url)
-  }
-
-  async createEvent(event: PotluckEvent): Promise<void> {
-    this.writeSnapshot({ event, signups: [] })
-  }
-
-  async getEvent(id: string): Promise<PotluckEvent | null> {
-    const { event } = this.readSnapshot()
-    return event && event.id === id ? event : null
-  }
-
-  async listEvents(): Promise<PotluckEvent[]> {
-    const { event } = this.readSnapshot()
-    return event ? [event] : []
-  }
-
-  async updateEvent(id: string, patch: Partial<PotluckEvent>): Promise<void> {
-    const snap = this.readSnapshot()
-    if (snap.event && snap.event.id === id) {
-      this.writeSnapshot({ ...snap, event: { ...snap.event, ...patch } })
-    }
-  }
-
-  async listSignups(eventId: string): Promise<Signup[]> {
-    return this.readSnapshot().signups.filter((s) => s.eventId === eventId)
-  }
-
-  async addSignup(signup: Signup): Promise<void> {
-    const snap = this.readSnapshot()
-    this.writeSnapshot({ ...snap, signups: [...snap.signups, signup] })
-  }
-
-  async updateSignup(id: string, patch: Partial<Signup>): Promise<void> {
-    const snap = this.readSnapshot()
-    this.writeSnapshot({ ...snap, signups: snap.signups.map((s) => (s.id === id ? { ...s, ...patch } : s)) })
-  }
-
-  async removeSignup(id: string): Promise<void> {
-    const snap = this.readSnapshot()
-    this.writeSnapshot({ ...snap, signups: snap.signups.filter((s) => s.id !== id) })
-  }
-
-  async list(): Promise<Signup[]> {
-    return this.listSignups(this.eventId)
-  }
-
-  async add(signup: Signup): Promise<void> {
-    await this.addSignup({ ...(await withEditToken(signup)), eventId: signup.eventId || this.eventId })
-  }
-
-  async update(id: string, patch: Partial<Signup>): Promise<void> {
-    await this.updateSignup(id, patch)
-  }
-
-  async remove(id: string): Promise<void> {
-    await this.removeSignup(id)
-  }
-}
-
-interface AppsScriptResponse {
-  signups?: unknown
-  ok?: boolean
-  error?: string
-}
-
-/**
- * Single-event fallback: an Apps Script web app backed by a Google Sheet
- * (setup: backend/Code.gs). Event details live in this browser; the Sheet
- * holds only signups and stays the admin view. Public events use Supabase.
- */
-export class AppsScriptStore implements SignupStore {
-  mode: StoreMode = 'apps-script'
-  label = 'Google Sheet (Apps Script, one event)'
-  note = 'One central list in the Sheet, for one event only. Everyone who opens the link sees the same signups. It cannot host other peoples events; use Supabase for that.'
-  readonly eventId = DEFAULT_EVENT_ID
-
-  private endpoint(): string {
-    return getStoredSetting(APPS_SCRIPT_URL_KEY)
-  }
-
-  private readEvent(): PotluckEvent | null {
-    try {
-      return cleanEvent(JSON.parse(localStorage.getItem(APPS_SCRIPT_EVENT_KEY) ?? 'null'))
-    } catch {
-      return null
-    }
-  }
-
-  private async call(body: Record<string, unknown>): Promise<AppsScriptResponse> {
-    const endpoint = this.endpoint()
-    if (!endpoint) throw new Error('Apps Script URL is not set. Open Settings and paste the web app URL.')
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) throw new Error(`Apps Script request failed (${res.status}).`)
-    const data = (await res.json()) as AppsScriptResponse
-    if (data.error) throw new Error(data.error)
-    return data
-  }
-
-  async createEvent(event: PotluckEvent): Promise<void> {
-    localStorage.setItem(APPS_SCRIPT_EVENT_KEY, JSON.stringify(event))
-  }
-
-  async getEvent(id: string): Promise<PotluckEvent | null> {
-    const event = this.readEvent()
-    return event && event.id === id ? event : null
-  }
-
-  async listEvents(): Promise<PotluckEvent[]> {
-    const event = this.readEvent()
-    return event ? [event] : []
-  }
-
-  async updateEvent(id: string, patch: Partial<PotluckEvent>): Promise<void> {
-    const event = this.readEvent()
-    if (event && event.id === id) {
-      localStorage.setItem(APPS_SCRIPT_EVENT_KEY, JSON.stringify({ ...event, ...patch }))
-    }
-  }
-
-  async listSignups(_eventId: string): Promise<Signup[]> {
-    const endpoint = this.endpoint()
-    if (!endpoint) throw new Error('Apps Script URL is not set. Open Settings and paste the web app URL.')
-    const res = await fetch(`${endpoint}?action=list`)
-    if (!res.ok) throw new Error(`Apps Script request failed (${res.status}).`)
-    const data = (await res.json()) as AppsScriptResponse
-    // The Sheet's rows carry no eventId; stamp the bound event so they validate.
-    const raw = Array.isArray(data.signups) ? data.signups : []
-    return cleanSignupList(
-      raw.map((row) =>
-        typeof row === 'object' && row !== null
-          ? { ...(row as Record<string, unknown>), eventId: (row as Record<string, unknown>).eventId ?? this.eventId }
-          : row,
-      ),
-    )
-  }
-
-  async addSignup(signup: Signup): Promise<void> {
-    await this.call({ action: 'add', signup })
-  }
-
-  async updateSignup(id: string, patch: Partial<Signup>): Promise<void> {
-    await this.call({ action: 'update', id, patch })
-  }
-
-  async removeSignup(id: string): Promise<void> {
-    await this.call({ action: 'remove', id })
-  }
-
-  async list(): Promise<Signup[]> {
-    return this.listSignups(this.eventId)
-  }
-
-  async add(signup: Signup): Promise<void> {
-    await this.addSignup({ ...(await withEditToken(signup)), eventId: signup.eventId || this.eventId })
-  }
-
-  async update(id: string, patch: Partial<Signup>): Promise<void> {
-    await this.updateSignup(id, patch)
-  }
-
-  async remove(id: string): Promise<void> {
-    await this.removeSignup(id)
-  }
-}
-
 /**
  * The public backend: Supabase (free Postgres), no accounts. The anon key
  * is publishable by design; RLS plus token-checked functions protect
@@ -554,7 +352,7 @@ export class AppsScriptStore implements SignupStore {
 export class SupabaseStore implements SignupStore {
   mode: StoreMode = 'supabase'
   label = 'Supabase (Postgres, public)'
-  note = 'One central database for every event anyone creates. Works out of the box with the potluck-signup project; Settings can point it at a different project. The tables come from backend/supabase.sql.'
+  note = 'One central database for every event anyone creates. The project is configured at build time (docs/BACKEND.md). The tables come from backend/supabase.sql.'
   readonly eventId: string
 
   private cachedClient: SupabaseClient | null = null
@@ -770,15 +568,7 @@ export class SupabaseStore implements SignupStore {
 }
 
 export function createStore(mode: StoreMode): SignupStore {
-  switch (mode) {
-    case 'url':
-      return new UrlSnapshotStore()
-    case 'apps-script':
-      return new AppsScriptStore()
-    case 'supabase':
-      return new SupabaseStore()
-    case 'local':
-    default:
-      return new LocalStore()
-  }
+  // The local store is a dev tool; production builds always use Supabase, whatever mode was saved.
+  if (mode === 'local' && devStoresEnabled()) return new LocalStore()
+  return new SupabaseStore()
 }

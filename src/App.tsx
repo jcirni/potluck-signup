@@ -11,13 +11,13 @@ import { installAction, isIosDevice, isStandalone, shouldShowInstallButton } fro
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
 import { flushPendingSuggestions, submitSuggestion } from './lib/suggestions.ts'
 import {
-  APPS_SCRIPT_URL_STORAGE_KEY,
   DEFAULT_SUPABASE_ANON_KEY,
   DEFAULT_SUPABASE_URL,
   SUPABASE_KEY_STORAGE_KEY,
   SUPABASE_URL_STORAGE_KEY,
   captureAdminTokenFromUrl,
   createStore,
+  devStoresEnabled,
   eventAdminToken,
   forgetToken,
   getStoredSetting,
@@ -82,10 +82,10 @@ function gapText(g: CourseGap): string {
 }
 
 export default function App() {
-  // The bare URL is the home page; an event page needs ?event= or a snapshot hash (#s=).
+  // The bare URL is the home page; an event page needs ?event=.
   const [isHome] = useState(() => {
     if (typeof window === 'undefined') return false
-    return !new URLSearchParams(window.location.search).get('event') && !/#s=/.test(window.location.hash)
+    return !new URLSearchParams(window.location.search).get('event')
   })
   const [mode, setMode] = useState<StoreMode>(() => resolveMode(localStorage.getItem(MODE_KEY)))
   const [store, setStore] = useState<SignupStore>(() => createStore(mode))
@@ -171,7 +171,6 @@ export default function App() {
     await installPrompt.userChoice
     setInstallPrompt(null)
   }, [installPrompt])
-  const [appsScriptUrl, setAppsScriptUrl] = useState(() => getStoredSetting(APPS_SCRIPT_URL_STORAGE_KEY))
   const [supabaseUrl, setSupabaseUrl] = useState(
     () => getStoredSetting(SUPABASE_URL_STORAGE_KEY) || DEFAULT_SUPABASE_URL,
   )
@@ -214,8 +213,8 @@ export default function App() {
       return
     }
     setLoaded(false)
-    // Seed samples only for offline modes; a central backend starts empty.
-    void refresh(s, mode === 'local' || mode === 'url')
+    // Seed samples only for the dev local store; the central backend starts empty.
+    void refresh(s, mode === 'local')
     // The event record carries the date, accent, and host details; modes without one leave it null.
     setEvent(null)
     void s
@@ -324,15 +323,12 @@ export default function App() {
   const canEditAccent = mode === 'supabase' ? eventAdminToken(store.eventId) !== undefined : true
 
   // The drawer's email link carries the host link only when this browser holds the admin token.
-  const guestLink =
-    mode === 'url'
-      ? window.location.href
-      : `${window.location.origin}${window.location.pathname}?event=${encodeURIComponent(store.eventId)}`
+  const guestLink = `${window.location.origin}${window.location.pathname}?event=${encodeURIComponent(store.eventId)}`
   const heldAdminToken = eventAdminToken(store.eventId)
   const linksMailto = buildLinksMailto({
     eventName: displayEventName(event, eventName),
     guestUrl: guestLink,
-    adminUrl: heldAdminToken && mode !== 'url' ? `${guestLink}&admin=${encodeURIComponent(heldAdminToken)}` : undefined,
+    adminUrl: heldAdminToken ? `${guestLink}&admin=${encodeURIComponent(heldAdminToken)}` : undefined,
   })
 
   /** Re-skin at once, then persist: admin RPC on Supabase, the stored event record elsewhere. */
@@ -474,7 +470,7 @@ export default function App() {
       for (const s of signups.filter((x) => x.sample)) await store.remove(s.id)
       await refresh(store, false)
     } catch (err) {
-      // Local / URL modes seed from memory, so clearing is local state.
+      // The local store seeds from memory, so clearing is local state.
       setSignups(signups.filter((x) => !x.sample))
       setError(err instanceof Error ? err.message : '')
     }
@@ -483,7 +479,7 @@ export default function App() {
   function copyShareLink() {
     const url = window.location.href
     void navigator.clipboard.writeText(url).then(
-      () => setNotice(mode === 'url' ? 'Snapshot link copied. It carries this exact list.' : 'Link copied.'),
+      () => setNotice('Link copied.'),
       () => setError('Could not copy the link. Copy it from the address bar instead.'),
     )
   }
@@ -1110,14 +1106,13 @@ export default function App() {
               </div>
             </section>
 
+            {devStoresEnabled() && (
             <section className="drawer-section">
               <h3>Where signups live</h3>
               <label className="event-label">
                 Storage
                 <select value={mode} onChange={(e) => setMode(e.target.value as StoreMode)}>
                   <option value="local">This browser only (demo)</option>
-                  <option value="url">Share link — snapshot in the URL</option>
-                  <option value="apps-script">Google Sheet (Apps Script)</option>
                   <option value="supabase">Supabase (Postgres)</option>
                 </select>
               </label>
@@ -1137,18 +1132,6 @@ export default function App() {
               </div>
               {showSettings && (
                 <div className="settings">
-                  <label>
-                    Apps Script web app URL
-                    <input
-                      type="url"
-                      placeholder="https://script.google.com/macros/s/.../exec"
-                      value={appsScriptUrl}
-                      onChange={(e) => {
-                        setAppsScriptUrl(e.target.value)
-                        setStoredSetting(APPS_SCRIPT_URL_STORAGE_KEY, e.target.value)
-                      }}
-                    />
-                  </label>
                   <label>
                     Supabase project URL
                     <input
@@ -1173,12 +1156,12 @@ export default function App() {
                     />
                   </label>
                   <p className="hint">
-                    Keys live in this browser only. The backend code is in <code>backend/Code.gs</code> (Apps Script) and{' '}
-                    <code>backend/supabase.sql</code> (Supabase).
+                    Keys live in this browser only. The backend schema is in <code>backend/supabase.sql</code>.
                   </p>
                 </div>
               )}
             </section>
+            )}
 
             <section className="drawer-section">
               <h3>Share link</h3>
@@ -1207,7 +1190,7 @@ export default function App() {
               </div>
             </section>
 
-            {hasSample && (
+            {devStoresEnabled() && hasSample && (
               <section className="drawer-section">
                 <h3>Sample data</h3>
                 {confirmClearSamples ? (
@@ -1245,7 +1228,7 @@ export default function App() {
               </button>
             </div>
             <section className="drawer-section">
-              <CreateEvent store={store} mode={mode} onClose={() => setCreateOpen(false)} />
+              <CreateEvent store={store} onClose={() => setCreateOpen(false)} />
             </section>
           </div>
         </>

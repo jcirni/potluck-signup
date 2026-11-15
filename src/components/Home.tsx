@@ -51,7 +51,7 @@ export default function Home({ store, mode, showInstallButton, installHint, onIn
       <div className="home-wrap">
         <section className="panel">
           <h2>Start a potluck</h2>
-          <CreateEvent store={store} mode={mode} onCreated={() => void loadYours()} />
+          <CreateEvent store={store} onCreated={() => void loadYours()} />
         </section>
 
         <section className="panel">
