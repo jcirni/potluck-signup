@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { allergyRollup, findDuplicates, neededCourses, ovenCount } from './lib/gaps.ts'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { cuisineColor, loadCatalog, type Dish } from './lib/catalog.ts'
+import { allergyRollup, computeGaps, findDuplicates, neededCourses, ovenCount, type CourseGap } from './lib/gaps.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
 import {
   APPS_SCRIPT_URL_STORAGE_KEY,
@@ -15,7 +16,7 @@ import {
   type SignupStore,
   type StoreMode,
 } from './lib/storage.ts'
-import { COURSES, DEFAULT_TARGETS, isCourse, type Course, type Signup, type Targets } from './lib/types.ts'
+import { COURSES, DEFAULT_TARGETS, isCourse, type Course, type PotluckEvent, type Signup, type Targets } from './lib/types.ts'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -39,6 +40,21 @@ function emptyForm(): { name: string; dish: string; course: Course; needOven: bo
   return { name: '', dish: '', course: 'Mains', needOven: false, allergies: '', servings: '' }
 }
 
+/** '2026-11-26' -> 'Thursday, November 26, 2026'; unparseable input passes through. */
+function formatEventDate(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+}
+
+/** Progress line for one course in the gap view. */
+function gapText(g: CourseGap): string {
+  if (g.target === 0) return 'no target set'
+  if (g.need === 0) return `${g.count} of ${g.target} — covered`
+  if (g.need === 1) return `${g.count} of ${g.target} — one more would round it out`
+  return `${g.count} of ${g.target} — need ${g.need} more`
+}
+
 export default function App() {
   const [mode, setMode] = useState<StoreMode>(() => {
     const saved = localStorage.getItem(MODE_KEY)
@@ -57,6 +73,13 @@ export default function App() {
   const [confirmClearSamples, setConfirmClearSamples] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [event, setEvent] = useState<PotluckEvent | null>(null)
+  const [dishes, setDishes] = useState<Dish[]>([])
+  const [dishFilter, setDishFilter] = useState('')
+  const [pickedDishId, setPickedDishId] = useState<string | null>(null)
+  const [formInView, setFormInView] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const formSectionRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     const onBeforeInstall = (e: Event) => {
@@ -116,13 +139,62 @@ export default function App() {
     setLoaded(false)
     // Seed samples only for offline modes; a central backend starts empty.
     void refresh(s, mode === 'local' || mode === 'url')
+    // The event record carries the date, RSVP headcount, and accent; modes without one leave it null.
+    setEvent(null)
+    void s.getEvent(s.eventId).then(setEvent).catch(() => setEvent(null))
   }, [mode, refresh])
 
+  useEffect(() => {
+    // The catalog powers the dish picker; without it the form still works as free text.
+    void loadCatalog().then((c) => setDishes(c.dishes)).catch(() => setDishes([]))
+  }, [])
+
+  useEffect(() => {
+    const el = formSectionRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(([entry]) => setFormInView(entry.isIntersecting), { rootMargin: '-30% 0px -30% 0px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   const gaps = useMemo(() => neededCourses(signups, targets), [signups, targets])
+  const allGaps = useMemo(() => computeGaps(signups, targets), [signups, targets])
   const duplicates = useMemo(() => findDuplicates(signups), [signups])
   const allergies = useMemo(() => allergyRollup(signups), [signups])
   const ovens = ovenCount(signups)
   const hasSample = signups.some((s) => s.sample)
+  const pickedDish = useMemo(() => dishes.find((d) => d.id === pickedDishId) ?? null, [dishes, pickedDishId])
+  const filteredDishes = useMemo(() => {
+    const q = dishFilter.trim().toLowerCase()
+    const sorted = [...dishes].sort((a, b) => a.name.localeCompare(b.name))
+    if (!q) return sorted
+    return sorted.filter((d) => `${d.name} ${d.cuisine} ${d.course}`.toLowerCase().includes(q))
+  }, [dishes, dishFilter])
+
+  /** Sticky mobile button target: bring the signup form into view. */
+  function scrollToForm() {
+    formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  /** Claim-a-dish: preselect the course, then put the guest at the top of the form. */
+  function claimCourse(course: Course) {
+    setEditingId(null)
+    setForm((f) => ({ ...f, course }))
+    formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+    window.setTimeout(() => nameRef.current?.focus({ preventScroll: true }), 400)
+  }
+
+  /** Picking a catalog dish fills the form from it; the dish id rides along on submit. */
+  function pickDish(d: Dish) {
+    setPickedDishId(d.id)
+    setForm((f) => ({
+      ...f,
+      dish: d.name,
+      course: d.course,
+      needOven: d.logistics.needsOven,
+      servings: d.servings > 0 ? String(d.servings) : f.servings,
+    }))
+  }
 
   function saveTargets(next: Targets) {
     setTargets(next)
@@ -143,12 +215,15 @@ export default function App() {
       return
     }
     const servings = form.servings === '' ? 0 : Math.max(0, Number(form.servings) || 0)
+    // The catalog id only rides along while the dish text still matches the picked dish.
+    const dishId = pickedDish && pickedDish.name === dish ? pickedDish.id : undefined
     setError('')
     try {
       if (editingId) {
         await store.update(editingId, {
           name,
           dish,
+          dishId,
           course: form.course,
           needOven: form.needOven,
           allergies: form.allergies.trim(),
@@ -160,6 +235,7 @@ export default function App() {
         const signup: Signup = {
           id: crypto.randomUUID(),
           eventId: store.eventId,
+          dishId,
           name,
           dish,
           course: form.course,
@@ -172,6 +248,7 @@ export default function App() {
         setNotice('You are signed up. Your edit link is saved in this browser, so you can change or remove your dish later.')
       }
       setForm(emptyForm())
+      setPickedDishId(null)
       setEditingId(null)
       await refresh(store, false)
     } catch (err) {
@@ -212,6 +289,7 @@ export default function App() {
 
   function startEdit(s: Signup) {
     setConfirmRemoveId(null)
+    setPickedDishId(s.dishId ?? null)
     setForm({
       name: s.name,
       dish: s.dish,
@@ -225,30 +303,64 @@ export default function App() {
   }
 
   return (
-    <div className="layout">
+    <div className="page">
+      <header className="hero">
+        <p className="hero-eyebrow">Potluck signup</p>
+        <h1 className="hero-name">{eventName}</h1>
+        {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
+        <div className="stats">
+          <div className="stat">
+            <span className="stat-num">{signups.length}</span>
+            <span className="stat-label">{signups.length === 1 ? 'person' : 'people'} signed up</span>
+          </div>
+          <div className="stat">
+            <span className="stat-num">{signups.length}</span>
+            <span className="stat-label">dishes on the menu</span>
+          </div>
+          <div className="stat">
+            <span className="stat-num">{ovens}</span>
+            <span className="stat-label">{ovens === 1 ? 'dish needs' : 'dishes need'} the oven</span>
+          </div>
+          {event !== null && event.headcount > 0 && (
+            <div className="stat">
+              <span className="stat-num">{event.headcount}</span>
+              <span className="stat-label">RSVP headcount</span>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div className="layout">
       <aside>
-        <h1>Potluck signup</h1>
         <label className="event-label">
-          Event
+          Event name
           <input value={eventName} onChange={(e) => saveEventName(e.target.value)} aria-label="Event name" />
         </label>
-        <p className="hint">
-          {signups.length} {signups.length === 1 ? 'person' : 'people'} signed up · {ovens} {ovens === 1 ? 'dish needs' : 'dishes need'} the oven
-        </p>
 
         <section className="panel">
           <h2>We could use more of</h2>
-          {gaps.length === 0 ? (
-            <p className="good">Every course has hit its target. Nice spread.</p>
-          ) : (
-            <ul className="gaps">
-              {gaps.map((g) => (
-                <li key={g.course}>
-                  <strong>{g.course}</strong>: {g.count} of {g.target} — need {g.need} more
-                </li>
-              ))}
-            </ul>
-          )}
+          {gaps.length === 0 && <p className="good">Every course has hit its target. Nice spread.</p>}
+          <ul className="gap-list">
+            {allGaps.map((g) => (
+              <li key={g.course} className="gap-row">
+                <div className="gap-head">
+                  <strong>{g.course}</strong>
+                  <span className="hint">{gapText(g)}</span>
+                </div>
+                <div className="gapbar" aria-hidden="true">
+                  <div
+                    className="gapbar-fill"
+                    style={{ width: `${g.target > 0 ? Math.min(100, (g.count / g.target) * 100) : 0}%` }}
+                  />
+                </div>
+                {g.need > 0 && (
+                  <button type="button" className="link" onClick={() => claimCourse(g.course)}>
+                    I&rsquo;ll bring this
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
           <details>
             <summary>Change the targets</summary>
             <div className="targets">
@@ -393,16 +505,68 @@ export default function App() {
           </p>
         )}
 
-        <section>
+        <section ref={formSectionRef} className="form-section">
           <h2>{editingId ? 'Edit your dish' : 'Sign up — what are you bringing?'}</h2>
+          {dishes.length > 0 && (
+            <div className="picker">
+              <label className="picker-search">
+                Pick from the catalog
+                <input
+                  type="search"
+                  placeholder="Search dishes or cuisines…"
+                  value={dishFilter}
+                  onChange={(e) => setDishFilter(e.target.value)}
+                />
+              </label>
+              {pickedDish && (
+                <p className="hint">
+                  Picked: <strong>{pickedDish.name}</strong>{' '}
+                  <button type="button" className="link" onClick={() => setPickedDishId(null)}>
+                    Clear
+                  </button>
+                </p>
+              )}
+              {filteredDishes.length === 0 ? (
+                <p className="hint">No dishes match. You can still type your own dish below.</p>
+              ) : (
+                <ul className="picker-list">
+                  {filteredDishes.slice(0, 60).map((d) => (
+                    <li key={d.id}>
+                      <button
+                        type="button"
+                        className={`picker-row${d.id === pickedDishId ? ' picked' : ''}`}
+                        onClick={() => pickDish(d)}
+                      >
+                        <span className="picker-name">{d.name}</span>
+                        <span className="chip" style={{ background: cuisineColor(d.cuisine) }}>{d.cuisine}</span>
+                        <span className="badge">{d.macros.calories} kcal</span>
+                        <span className="badge">{d.macros.proteinG}g protein</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {filteredDishes.length > 60 && (
+                <p className="hint">Showing 60 of {filteredDishes.length}. Keep typing to narrow it down.</p>
+              )}
+            </div>
+          )}
           <form onSubmit={submit} className="form">
             <label>
               Your name
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              <input ref={nameRef} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             </label>
             <label>
               Dish
-              <input value={form.dish} onChange={(e) => setForm({ ...form, dish: e.target.value })} required />
+              <input
+                value={form.dish}
+                onChange={(e) => {
+                  setForm({ ...form, dish: e.target.value })
+                  // Typing a different dish by hand un-picks the catalog dish.
+                  if (pickedDish && e.target.value !== pickedDish.name) setPickedDishId(null)
+                }}
+                required
+              />
             </label>
             <label>
               Course
@@ -447,6 +611,7 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setEditingId(null)
+                    setPickedDishId(null)
                     setForm(emptyForm())
                   }}
                 >
@@ -520,6 +685,12 @@ export default function App() {
           )}
         </section>
       </main>
+      </div>
+      {!formInView && (
+        <button type="button" className="sticky-signup" onClick={scrollToForm}>
+          {editingId ? 'Back to the form' : 'Sign up'}
+        </button>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { cuisinesOf, formatQuantity, scaleIngredients, validateCatalog, type Dish } from './catalog.ts'
+import { CUISINE_PALETTE, cuisineColor, cuisinesOf, formatQuantity, scaleIngredients, validateCatalog, type Dish } from './catalog.ts'
 
 function dish(partial: Partial<Dish> & { id: string }): Dish {
   return {
@@ -84,6 +84,20 @@ describe('scaleIngredients', () => {
       { item: 'Rice', quantity: 6, unit: 'cups' },
     ])
     expect(scaleIngredients(d, 0.5)[1].quantity).toBe(1)
+  })
+})
+
+describe('cuisineColor', () => {
+  it('is deterministic and always returns a palette color', () => {
+    for (const cuisine of ['Italian', 'Mexican', 'Thai', 'American', 'Ethiopian']) {
+      expect(cuisineColor(cuisine)).toBe(cuisineColor(cuisine))
+      expect(CUISINE_PALETTE).toContain(cuisineColor(cuisine))
+    }
+  })
+
+  it('spreads different cuisines across the palette', () => {
+    const used = new Set(['Italian', 'Mexican', 'Thai', 'Indian', 'Japanese', 'French'].map(cuisineColor))
+    expect(used.size).toBeGreaterThan(1)
   })
 })
 

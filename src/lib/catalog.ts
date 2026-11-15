@@ -165,6 +165,19 @@ export function cuisinesOf(dishes: Dish[]): string[] {
   return [...new Set(dishes.map((d) => d.cuisine))].sort()
 }
 
+/** Chip colors for cuisines, muted jewel tones readable with dark text. */
+export const CUISINE_PALETTE = [
+  '#d9a441', '#c96f4a', '#9db87c', '#7fa6a3', '#9a86c8', '#c98aa6',
+  '#b8b06a', '#8aa6c9', '#c47f5a', '#7c9a5f', '#a67c52', '#5f8a7d',
+]
+
+/** Deterministic chip color for a cuisine: same name, same color, every load. */
+export function cuisineColor(cuisine: string): string {
+  let hash = 0
+  for (let i = 0; i < cuisine.length; i++) hash = (hash * 31 + cuisine.charCodeAt(i)) >>> 0
+  return CUISINE_PALETTE[hash % CUISINE_PALETTE.length]
+}
+
 /** Scale a dish's ingredient quantities by a factor (0.5x, 2x, 3x). */
 export function scaleIngredients(dish: Dish, scale: number): DishIngredient[] {
   return dish.ingredients.map((ing) => ({ ...ing, quantity: Math.round(ing.quantity * scale * 100) / 100 }))
