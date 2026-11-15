@@ -13,8 +13,8 @@ export default defineConfig({
         short_name: 'Potluck',
         description:
           'Sign up for a potluck, see who is coming and what they are bringing, and spot what the menu still needs.',
-        theme_color: '#b8860b',
-        background_color: '#f7f5ef',
+        theme_color: '#16130e',
+        background_color: '#16130e',
         display: 'standalone',
         // Relative start_url/scope: works from any GitHub Pages subpath, matching base: './'.
         start_url: '.',
@@ -27,7 +27,7 @@ export default defineConfig({
       },
       workbox: {
         // Precache the app shell, the dish catalog, and icons copied into dist/.
-        globPatterns: ['**/*.{js,css,html,json,png,svg,ico}'],
+        globPatterns: ['**/*.{js,css,html,json,png,svg,ico,woff2}'],
         runtimeCaching: [
           {
             // Signup data must always be live: never cache Supabase API responses.
