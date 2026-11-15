@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildICS } from './ics.ts'
+import { buildICS, icsFilename } from './ics.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, type PotluckEvent, type Signup } from './types.ts'
 
 function event(partial: Partial<PotluckEvent>): PotluckEvent {
@@ -29,6 +29,12 @@ function signup(partial: Partial<Signup> & { id: string }): Signup {
     ...partial,
   }
 }
+
+describe('icsFilename', () => {
+  it('names the download after the event slug', () => {
+    expect(icsFilename(event({}))).toBe('friendsgiving.ics')
+  })
+})
 
 describe('buildICS', () => {
   it('produces a complete VEVENT with CRLF line endings', () => {

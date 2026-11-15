@@ -10,6 +10,11 @@ function nextDay(date: string): string {
   return d.toISOString().slice(0, 10).replace(/-/g, '')
 }
 
+/** Download filename for an event's calendar file. */
+export function icsFilename(event: PotluckEvent): string {
+  return `${event.id}.ics`
+}
+
 /** Build an .ics file for the event ('' when it has no date yet). All-day; the description carries the menu. */
 export function buildICS(event: PotluckEvent, signups: Signup[]): string {
   if (!event.date) return ''

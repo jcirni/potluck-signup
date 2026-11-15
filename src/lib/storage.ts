@@ -110,6 +110,20 @@ export function eventAdminToken(eventId: string): string | undefined {
   return localStorage.getItem(`potluck:admin-token:${eventId}`) ?? undefined
 }
 
+/** Keep this browser's raw admin token for an event; only its hash ever goes to the server. */
+export function saveAdminToken(eventId: string, token: string): void {
+  localStorage.setItem(`potluck:admin-token:${eventId}`, token)
+}
+
+/** An admin link (?event=<id>&admin=<token>) teaches this browser the token, so host controls unlock here too. */
+export function captureAdminTokenFromUrl(): void {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams(window.location.search)
+  const eventId = params.get('event')
+  const token = params.get('admin')
+  if (eventId && token) saveAdminToken(eventId, token)
+}
+
 /** Hash of the edit token this browser holds for a signup, if any. */
 async function storedEditTokenHash(id: string): Promise<string | undefined> {
   const token = readTokens()[id]
@@ -208,7 +222,13 @@ export class LocalStore implements SignupStore {
   mode: StoreMode = 'local'
   label = 'This browser only'
   note = 'Events and signups are stored in this browser (localStorage). Good for trying the app; other guests will not see them.'
-  readonly eventId = DEFAULT_EVENT_ID
+  readonly eventId: string
+
+  constructor() {
+    // Bound event comes from the share link (?event=<id>), else the demo event.
+    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('event') : null
+    this.eventId = fromUrl || DEFAULT_EVENT_ID
+  }
 
   private readEvents(): PotluckEvent[] {
     return cleanEventList(JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) ?? '[]'))
@@ -658,11 +678,10 @@ export class SupabaseStore implements SignupStore {
    * is minted here and kept in this browser; only its hash is sent.
    */
   private async ensureEvent(): Promise<void> {
-    const key = `potluck:admin-token:${this.eventId}`
-    let token = localStorage.getItem(key)
+    let token = eventAdminToken(this.eventId)
     if (!token) {
       token = crypto.randomUUID()
-      localStorage.setItem(key, token)
+      saveAdminToken(this.eventId, token)
     }
     const { error } = await this.client()
       .from('events')
