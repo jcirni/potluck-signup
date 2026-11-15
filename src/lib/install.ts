@@ -5,6 +5,20 @@ export function isStandalone(): boolean {
   return nav.standalone === true || window.matchMedia('(display-mode: standalone)').matches
 }
 
+/** Show the install button whenever the app is not already running installed. */
+export function shouldShowInstallButton(standalone: boolean, justInstalled: boolean): boolean {
+  return !standalone && !justInstalled
+}
+
+export type InstallAction = 'prompt' | 'ios-hint' | 'menu-hint'
+
+/** Click behavior: captured prompt first, iOS Share hint next, browser-menu hint everywhere else. */
+export function installAction(hasPrompt: boolean, ios: boolean): InstallAction {
+  if (hasPrompt) return 'prompt'
+  if (ios) return 'ios-hint'
+  return 'menu-hint'
+}
+
 /** iOS Safari never fires beforeinstallprompt; it needs the Share-sheet hint instead. */
 export function isIosDevice(): boolean {
   if (typeof navigator === 'undefined') return false
