@@ -70,9 +70,7 @@ function formatEventDate(iso: string): string {
 /** Progress line for one course in the gap view. */
 function gapText(g: CourseGap): string {
   if (g.target === 0) return 'no target set'
-  if (g.need === 0) return `${g.count} of ${g.target} — covered`
-  if (g.need === 1) return `${g.count} of ${g.target} — one more would round it out`
-  return `${g.count} of ${g.target} — need ${g.need} more`
+  return `${g.count} of ${g.target}`
 }
 
 export default function App() {
